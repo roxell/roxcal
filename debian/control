@@ -1,0 +1,46 @@
+Source: roxcal
+Maintainer: Anders Roxell <anders.roxell@linaro.org>
+Section: python
+Priority: optional
+Build-Depends: bash-completion,
+               debhelper-compat (= 13),
+               dh-python,
+               flit,
+               git,
+               pybuild-plugin-pyproject,
+               python3-all,
+               python3-pytest,
+               python3-pytest-cov,
+               python3-pytest-mock
+Standards-Version: 4.6.0.1
+Homepage: https://gitlab.com/aroxell/roxcal
+
+Package: roxcal
+Architecture: all
+Depends: ${misc:Depends},
+         python3 (>= 3.10),
+         python3-google-auth,
+         python3-google-auth-oauthlib,
+         python3-google-api-client,
+         python3-msal,
+         python3-requests,
+         python3-caldav,
+         python3-icalendar,
+         python3-dateutil,
+         ${python3:Depends}
+Description: Unified CLI for Google, Microsoft and CalDAV calendars
+ roxcal is a command line tool to read and write calendars across
+ Google Calendar (REST API and CalDAV) and Microsoft Outlook
+ (Microsoft Graph). It supports multiple accounts, merged agendas,
+ attendees with email invites, and Google Meet / Microsoft Teams
+ links on event creation. A vim plugin provides an interactive
+ agenda buffer with RSVP, event creation and full detail view.
+
+Package: vim-roxcal
+Architecture: all
+Depends: ${misc:Depends}, vim-addon-manager
+Recommends: roxcal
+Description: roxcal vim plugin
+ The vim plugin for roxcal wraps the roxcal CLI to provide an
+ interactive agenda buffer with RSVP, expandable event detail and
+ a templated form for creating new events.
