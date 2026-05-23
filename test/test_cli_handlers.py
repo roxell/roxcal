@@ -234,6 +234,49 @@ def test_cmd_agenda_prints_lines(capsys):
     assert "Hello" in capsys.readouterr().out
 
 
+def test_cmd_agenda_config_color_always_emits_ansi(capsys):
+    """config.color = 'always' -> output is colored."""
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {
+                "start": "2026-05-21T14:00:00+02:00",
+                "title": "Standup",
+                "id": "x",
+                "account": "a",
+                "response": "accepted",
+            }
+        ]
+    )
+    cfg = _cfg()
+    cfg.color = "always"
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_agenda(_agenda_args(), cfg)
+    out = capsys.readouterr().out
+    assert "\033[32m" in out
+
+
+def test_cmd_agenda_config_color_never_has_no_ansi(capsys):
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {
+                "start": "2026-05-21T14:00:00+02:00",
+                "title": "Standup",
+                "id": "x",
+                "account": "ms",
+                "response": "accepted",
+            }
+        ]
+    )
+    cfg = _cfg()
+    cfg.color = "never"
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_agenda(_agenda_args(), cfg)
+    out = capsys.readouterr().out
+    assert "\033[" not in out
+
+
 def test_cmd_agenda_compact_drops_account_and_calendar(capsys):
     backend = MagicMock()
     backend.list_events.return_value = iter(

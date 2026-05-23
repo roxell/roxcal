@@ -207,6 +207,88 @@ def test_print_events_show_id_includes_id(capsys):
     assert "abc123" in capsys.readouterr().out
 
 
+def test_print_events_color_always_wraps_symbol_and_title(capsys):
+    items = [
+        {
+            "id": "a",
+            "title": "Standup",
+            "start": "2026-05-21T09:00:00+02:00",
+            "account": "ms",
+            "response": "accepted",
+        }
+    ]
+    print_events(items, color="always")
+    out = capsys.readouterr().out
+    assert "\033[32m[+]\033[0m" in out
+    assert "\033[32mStandup\033[0m" in out
+
+
+def test_print_events_color_never_no_ansi(capsys):
+    items = [
+        {
+            "id": "a",
+            "title": "Standup",
+            "start": "2026-05-21T09:00:00+02:00",
+            "account": "ms",
+            "response": "accepted",
+        }
+    ]
+    print_events(items, color="never")
+    out = capsys.readouterr().out
+    assert "\033[" not in out
+
+
+def test_print_events_color_skipped_for_blank_response(capsys):
+    items = [
+        {
+            "id": "a",
+            "title": "Standup",
+            "start": "2026-05-21T09:00:00+02:00",
+            "account": "ms",
+            "response": "",
+        }
+    ]
+    print_events(items, color="always")
+    out = capsys.readouterr().out
+    assert "\033[" not in out
+
+
+def test_should_color_never_returns_false(monkeypatch):
+    from roxcal.events import _should_color
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    assert _should_color("never") is False
+
+
+def test_should_color_always_returns_true(monkeypatch):
+    from roxcal.events import _should_color
+
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert _should_color("always") is True
+
+
+def test_should_color_auto_respects_no_color(monkeypatch):
+    from roxcal.events import _should_color
+
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert _should_color("auto") is False
+
+
+def test_should_color_auto_uses_tty(monkeypatch):
+    import sys as _sys
+
+    from roxcal.events import _should_color
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    class FakeOut:
+        def isatty(self):
+            return True
+
+    monkeypatch.setattr(_sys, "stdout", FakeOut())
+    assert _should_color("auto") is True
+
+
 def test_print_events_compact_hides_account_and_calendar(capsys):
     items = [
         {

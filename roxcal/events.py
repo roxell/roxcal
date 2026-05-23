@@ -3,13 +3,39 @@
 from __future__ import annotations
 
 import calendar as _calendar
+import os
 import re
+import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
 from .config import die
 
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+ANSI_COLOR = {
+    "accepted": "\033[32m",
+    "declined": "\033[31m",
+    "tentative": "\033[33m",
+    "needsAction": "\033[36m",
+    "organizer": "\033[35m",
+}
+ANSI_RESET = "\033[0m"
+
+
+def _should_color(mode: str) -> bool:
+    """Decide whether to emit ANSI color escapes.
+
+    'never' off, 'always' on. 'auto' is on only when stdout is a TTY and
+    the NO_COLOR env var is unset (https://no-color.org).
+    """
+    if mode == "never":
+        return False
+    if mode == "always":
+        return True
+    if os.environ.get("NO_COLOR"):
+        return False
+    return sys.stdout.isatty()
 
 
 def parse_when(s: str, default: datetime | None = None) -> datetime:
@@ -302,6 +328,7 @@ def print_events(
     items: list[dict],
     show_id: bool = False,
     compact: bool = False,
+    color: str = "never",
 ) -> None:
     """Print a list of events with account and calendar columns padded to the
     longest value in this batch, so rows align regardless of name length.
@@ -314,9 +341,13 @@ def print_events(
     With compact=True the [account] and [calendar] columns are dropped from
     each line. Use the show subcommand or the vim plugin's gd/<CR> expand
     to see those for a specific event.
+
+    With color in {auto, always}, the response bracket and the title are
+    colorized by RSVP state. 'auto' only colors when stdout is a TTY.
     """
     if not items:
         return
+    use_color = _should_color(color)
     acct_w = max(len(e.get("account", "?")) for e in items)
     cal_w = max(len(e.get("calendar_name") or e.get("calendar") or "") for e in items)
     for e in items:
@@ -325,10 +356,16 @@ def print_events(
         location = f"  @ {e['location']}" if e.get("location") else ""
         acct = e.get("account", "?")
         cal = e.get("calendar_name") or e.get("calendar") or ""
-        rsym = RESPONSE_SYMBOL.get(e.get("response", ""), " ")
+        response = e.get("response", "")
+        rsym = RESPONSE_SYMBOL.get(response, " ")
         idpart = f"  [{e['id']}]" if show_id else ""
+        sym = f"[{rsym}]"
+        if use_color and response in ANSI_COLOR:
+            c = ANSI_COLOR[response]
+            sym = f"{c}{sym}{ANSI_RESET}"
+            title = f"{c}{title}{ANSI_RESET}"
         if compact:
-            mid = f"[{rsym}]"
+            mid = sym
         else:
-            mid = f"[{rsym}]  [{acct:<{acct_w}}]  [{cal:<{cal_w}}]"
+            mid = f"{sym}  [{acct:<{acct_w}}]  [{cal:<{cal_w}}]"
         print(f"  {start:<16}  {mid}  {title}{location}{idpart}")

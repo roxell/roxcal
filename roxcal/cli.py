@@ -117,7 +117,7 @@ def cmd_agenda(args, cfg: Config) -> None:
     if args.json:
         print(json.dumps(items, default=str))
         return
-    print_events(items, show_id=args.ids, compact=args.compact)
+    print_events(items, show_id=args.ids, compact=args.compact, color=cfg.color)
 
 
 def cmd_add(args, cfg: Config) -> None:

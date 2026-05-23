@@ -37,6 +37,7 @@ class Account:
 class Config:
     default_account: str
     accounts: dict[str, Account] = field(default_factory=dict)
+    color: str = "auto"  # auto | always | never; overridable by --color
 
 
 def load_config() -> Config:
@@ -73,7 +74,10 @@ def load_config() -> Config:
     default_account = data.get("default_account", next(iter(accounts), ""))
     if default_account and default_account not in accounts:
         die(f"default_account '{default_account}' is not defined")
-    return Config(default_account=default_account, accounts=accounts)
+    color = data.get("color", "auto")
+    if color not in ("auto", "always", "never"):
+        die(f"color must be auto|always|never, got '{color}'")
+    return Config(default_account=default_account, accounts=accounts, color=color)
 
 
 def bootstrap_config() -> None:
@@ -83,6 +87,11 @@ def bootstrap_config() -> None:
 # roxcal config. Edit by hand.
 
 default_account = "roxell"
+
+# Color output for 'agenda': auto | always | never. --color on the command
+# line overrides this. 'auto' colors when stdout is a TTY. NO_COLOR env var
+# also disables color.
+# color = "auto"
 
 # Shared Google OAuth client (used by any google_oauth account that does not
 # override client_id/client_secret).

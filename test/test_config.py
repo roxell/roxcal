@@ -161,3 +161,42 @@ backend = "google_oauth"
 """)
     with pytest.raises(SystemExit):
         load_config()
+
+
+def test_load_config_color_defaults_to_auto(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+""")
+    assert load_config().color == "auto"
+
+
+def test_load_config_color_explicit(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+color = "always"
+
+[accounts.x]
+backend = "google_oauth"
+""")
+    assert load_config().color == "always"
+
+
+def test_load_config_color_invalid_exits(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+color = "rainbow"
+
+[accounts.x]
+backend = "google_oauth"
+""")
+    with pytest.raises(SystemExit):
+        load_config()
