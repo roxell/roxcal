@@ -310,7 +310,7 @@ Inside the `roxcal://agenda` buffer:
 
 | Key  | Action |
 |------|--------|
-| `<CR>` | Toggle inline expansion (organizer, Meet/Teams link, attendees with response status, description body). |
+| `<CR>` | Toggle inline expansion (account, calendar, organizer, Meet/Teams link, attendees with response status, description body). |
 | `a`    | RSVP **accepted** on the event under the cursor. Buffer reloads. |
 | `d`    | RSVP **declined**. |
 | `t`    | RSVP **tentative**. |
@@ -318,6 +318,7 @@ Inside the `roxcal://agenda` buffer:
 | `D`    | Delete the event (with confirmation). Cancels for all attendees if you organized it. |
 | `E`    | Edit the event in a pre-filled buffer. Submit with `:w` or `<leader>cc`. |
 | `gd`   | Show full detail in a horizontal split (`q` to close, `E` to switch to edit). |
+| `c`    | Toggle compact (hide `[account]` and `[calendar]` columns). Set `g:roxcal_compact = 1` for default-on. |
 | `r`    | Reload the buffer from roxcal. |
 | `q`    | Close the buffer. |
 | `?`    | Show the cheat-sheet in the command line. |

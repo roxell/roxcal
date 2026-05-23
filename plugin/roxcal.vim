@@ -15,6 +15,7 @@
 "   t      RSVP tentative
 "   D      delete event (asks first)
 "   gd     show full detail in a horizontal split
+"   c      toggle compact ([account] / [calendar] columns)
 "   r      reload
 "   q      close
 "   ?      this help
@@ -71,15 +72,22 @@ function! s:run_action(args) abort
     return 1
 endfunction
 
-function! s:fmt_event(ev) abort
+function! s:fmt_event(ev, compact) abort
     let r = get(s:response_symbol, get(a:ev, 'response', ''), ' ')
     let start = strpart(get(a:ev, 'start', ''), 0, 16)
-    let acct = get(a:ev, 'account', '?')
-    let cal = !empty(get(a:ev, 'calendar_name', '')) ? a:ev.calendar_name : get(a:ev, 'calendar', '')
     let title = get(a:ev, 'title', '(no title)')
     let location = get(a:ev, 'location', '')
     let loc = !empty(location) ? '  @ ' . location : ''
+    if a:compact
+        return printf('  %-16s  [%s]  %s%s', start, r, title, loc)
+    endif
+    let acct = get(a:ev, 'account', '?')
+    let cal = !empty(get(a:ev, 'calendar_name', '')) ? a:ev.calendar_name : get(a:ev, 'calendar', '')
     return printf('  %-16s  [%s]  [%s]  [%s]  %s%s', start, r, acct, cal, title, loc)
+endfunction
+
+function! RoxcalFmtEvent(ev, compact) abort
+    return s:fmt_event(a:ev, a:compact)
 endfunction
 
 function! s:render(events) abort
@@ -87,12 +95,15 @@ function! s:render(events) abort
     silent %delete _
     let b:roxcal_events = a:events
     let b:roxcal_expanded = {}
+    if !exists('b:roxcal_compact')
+        let b:roxcal_compact = get(g:, 'roxcal_compact', 0)
+    endif
     let b:roxcal_line_to_idx = {}
     let lines = []
     let line_no = 1
     let idx = 0
     for ev in a:events
-        call add(lines, s:fmt_event(ev))
+        call add(lines, s:fmt_event(ev, b:roxcal_compact))
         let b:roxcal_line_to_idx[line_no] = idx
         let line_no += 1
         let idx += 1
@@ -103,6 +114,15 @@ function! s:render(events) abort
     call setline(1, lines)
     setlocal nomodifiable nomodified
     call cursor(1, 1)
+endfunction
+
+function! s:toggle_compact() abort
+    if !exists('b:roxcal_events')
+        return
+    endif
+    let b:roxcal_compact = !get(b:, 'roxcal_compact', 0)
+    call s:render(b:roxcal_events)
+    echom b:roxcal_compact ? 'roxcal: compact on' : 'roxcal: compact off'
 endfunction
 
 " Walk up to the nearest event header line; return the index into
@@ -293,6 +313,12 @@ endfunction
 
 function! s:detail_lines(detail) abort
     let lines = []
+    if !empty(get(a:detail, 'account', ''))
+        call add(lines, '       Account: ' . a:detail.account)
+    endif
+    if !empty(get(a:detail, 'calendar', ''))
+        call add(lines, '       Calendar: ' . a:detail.calendar)
+    endif
     if !empty(get(a:detail, 'organizer', ''))
         call add(lines, '       Organizer: ' . a:detail.organizer)
     endif
@@ -379,6 +405,7 @@ function! s:show_agenda_help() abort
     echo  "  D           delete the event (asks first)"
     echo  "  E           edit the event in a buffer (submit with :w)"
     echo  "  gd          show full detail in a split (E to edit, q to close)"
+    echo  "  c           toggle compact (hide [account] / [calendar] columns)"
     echo  "  r           reload from roxcal"
     echo  "  q           close this buffer"
     echo  "  ?           this help"
@@ -431,6 +458,7 @@ function! s:open_agenda(...) abort
     nnoremap <buffer> <silent> gd   :call <SID>show_split()<CR>
     nnoremap <buffer> <silent> r    :call <SID>reload()<CR>
     nnoremap <buffer> <silent> q    :bd<CR>
+    nnoremap <buffer> <silent> c    :call <SID>toggle_compact()<CR>
     nnoremap <buffer> <silent> D    :call <SID>delete_event()<CR>
     nnoremap <buffer> <silent> E    :call <SID>edit_under_cursor()<CR>
     nnoremap <buffer> <silent> ?    :call <SID>show_agenda_help()<CR>

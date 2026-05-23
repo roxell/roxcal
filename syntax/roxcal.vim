@@ -15,7 +15,7 @@ syntax match roxcalOrganizer /^.*\[\*\].*$/
 
 " Expanded section under an event: organizer line, meet/teams link,
 " attendee lines and the | description prefix.
-syntax match roxcalExpandLabel   /^\s\+\(Organizer\|Meet\/Teams\):/
+syntax match roxcalExpandLabel   /^\s\+\(Account\|Calendar\|Organizer\|Meet\/Teams\):/
 syntax match roxcalDescriptionLn /^\s\+|.*/
 syntax match roxcalAttendeeYou   /^\s\+\[.\]\s\+\S\+\s\+(you)/
 syntax match roxcalAttendeeMark  /^\s\+\[+\]\s\+/ containedin=roxcalAccepted
