@@ -474,6 +474,7 @@ def _calw_args(**overrides):
         account=None,
         start=None,
         width=14,
+        vertical=False,
         calendar=None,
         all=False,
         all_calendars=False,
@@ -498,6 +499,20 @@ def test_cmd_calw_keyword_start():
         cmd_calw(_calw_args(start="tomorrow"), _cfg())
     args_passed = backend.list_events.call_args
     assert args_passed.args[0].weekday() == 0  # Monday
+
+
+def test_cmd_calw_vertical_uses_vertical_printer(capsys):
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [{"start": "2026-05-26T09:00:00+02:00", "title": "Standup"}]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_calw(_calw_args(start="2026-05-25", vertical=True), _cfg())
+    out = capsys.readouterr().out
+    # Vertical layout puts the YYYY-MM-DD into each day header.
+    assert "Tue 2026-05-26" in out
+    # And the horizontal "----..." separator row never appears.
+    assert "--------------" not in out
 
 
 # ---------- main

@@ -255,6 +255,49 @@ def print_week_grid(events: list[dict], start: date, width: int = 14) -> None:
         print(row.rstrip())
 
 
+def print_week_grid_vertical(events: list[dict], start: date) -> None:
+    """Print a 7-day week with one day per section, events stacked under it.
+
+    Same data as print_week_grid but one row per event instead of one column
+    per day. Better for narrow terminals and for days with many events.
+    """
+    days = [start + timedelta(days=i) for i in range(7)]
+    by_day: dict[date, list[dict]] = {d: [] for d in days}
+    for ev in events:
+        d = _event_date(ev.get("start", ""))
+        if d in by_day:
+            by_day[d].append(ev)
+    for d in by_day:
+        by_day[d].sort(key=lambda e: e.get("start", ""))
+
+    today = date.today()
+    title = f"Week of {start:%a %b %d %Y}"
+    print()
+    print(title)
+    print()
+
+    if not any(by_day[d] for d in days):
+        print("(no events this week)")
+        return
+
+    for d in days:
+        marker = "*" if d == today else " "
+        header = f"{marker}{DAY_NAMES[d.weekday()]} {d:%Y-%m-%d}"
+        print(header)
+        evs = by_day[d]
+        if not evs:
+            print("    -")
+            continue
+        for ev in evs:
+            iso = ev.get("start", "")
+            try:
+                dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+                time_s = dt.astimezone().strftime("%H:%M")
+            except ValueError:
+                time_s = "all "
+            print(f"    {time_s}  {ev.get('title', '')}")
+
+
 def print_events(items: list[dict], show_id: bool = False) -> None:
     """Print a list of events with account and calendar columns padded to the
     longest value in this batch, so rows align regardless of name length.

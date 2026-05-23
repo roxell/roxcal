@@ -14,6 +14,7 @@ from roxcal.events import (
     print_events,
     print_month_grid,
     print_week_grid,
+    print_week_grid_vertical,
 )
 
 # -------------------------------------------------------------- parse_when
@@ -387,6 +388,73 @@ def test_print_event_detail_shows_html_link(capsys):
 def test_print_week_grid_handles_unparseable_start(capsys):
     events = [{"start": "2026-05-26 not iso", "title": "All-day"}]
     print_week_grid(events, date(2026, 5, 25))
+    out = capsys.readouterr().out
+    assert "all" in out
+
+
+# ------------------------------------------------- print_week_grid_vertical
+
+
+def test_print_week_grid_vertical_title(capsys):
+    print_week_grid_vertical([], date(2026, 5, 25))
+    out = capsys.readouterr().out
+    assert "Week of" in out
+    assert "May 25 2026" in out
+
+
+def test_print_week_grid_vertical_empty_says_no_events(capsys):
+    print_week_grid_vertical([], date(2026, 5, 25))
+    assert "no events" in capsys.readouterr().out
+
+
+def test_print_week_grid_vertical_lists_all_days(capsys):
+    events = [{"start": "2026-05-26T09:00:00+02:00", "title": "Standup"}]
+    print_week_grid_vertical(events, date(2026, 5, 25))
+    out = capsys.readouterr().out
+    for day in [
+        "Mon 2026-05-25",
+        "Tue 2026-05-26",
+        "Wed 2026-05-27",
+        "Thu 2026-05-28",
+        "Fri 2026-05-29",
+        "Sat 2026-05-30",
+        "Sun 2026-05-31",
+    ]:
+        assert day in out
+
+
+def test_print_week_grid_vertical_groups_events_under_day(capsys):
+    events = [
+        {"start": "2026-05-26T09:30:00+02:00", "title": "Standup"},
+        {"start": "2026-05-26T15:00:00+02:00", "title": "Review"},
+        {"start": "2026-05-28T14:00:00+02:00", "title": "Demo"},
+    ]
+    print_week_grid_vertical(events, date(2026, 5, 25))
+    lines = capsys.readouterr().out.splitlines()
+    # Standup and Review both appear after the Tue header and before Wed
+    tue_idx = next(i for i, ln in enumerate(lines) if "Tue 2026-05-26" in ln)
+    wed_idx = next(i for i, ln in enumerate(lines) if "Wed 2026-05-27" in ln)
+    tue_block = lines[tue_idx + 1 : wed_idx]  # noqa: E203
+    block = "\n".join(tue_block)
+    assert "09:30" in block
+    assert "Standup" in block
+    assert "15:00" in block
+    assert "Review" in block
+    # Demo is under Thu, not Tue
+    assert "Demo" not in block
+
+
+def test_print_week_grid_vertical_marks_empty_day(capsys):
+    events = [{"start": "2026-05-26T09:00:00+02:00", "title": "Standup"}]
+    print_week_grid_vertical(events, date(2026, 5, 25))
+    out = capsys.readouterr().out
+    # Days without events get a dash placeholder
+    assert "\n    -" in out
+
+
+def test_print_week_grid_vertical_handles_unparseable_start(capsys):
+    events = [{"start": "2026-05-26 not iso", "title": "All-day"}]
+    print_week_grid_vertical(events, date(2026, 5, 25))
     out = capsys.readouterr().out
     assert "all" in out
     assert "All-day" in out

@@ -17,6 +17,7 @@ from .events import (
     print_events,
     print_month_grid,
     print_week_grid,
+    print_week_grid_vertical,
 )
 
 
@@ -259,7 +260,10 @@ def cmd_calw(args, cfg: Config) -> None:
     start_dt = datetime.combine(start, datetime.min.time()).astimezone()
     end_dt = datetime.combine(end, datetime.min.time()).astimezone()
     items = _collect_events(args, cfg, start_dt, end_dt)
-    print_week_grid(items, start, width=args.width)
+    if args.vertical:
+        print_week_grid_vertical(items, start)
+    else:
+        print_week_grid(items, start, width=args.width)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -428,6 +432,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=14,
         help="Per-column width in characters (default: 14)",
+    )
+    sp.add_argument(
+        "--vertical",
+        action="store_true",
+        help="Stack days top-to-bottom instead of side-by-side",
     )
     sp.add_argument(
         "--calendar",

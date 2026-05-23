@@ -240,6 +240,16 @@ def test_calw_calendar_repeatable():
     assert args.calendar == ["a", "b"]
 
 
+def test_calw_vertical_default_false():
+    args = _parser().parse_args(["calw"])
+    assert args.vertical is False
+
+
+def test_calw_vertical_flag():
+    args = _parser().parse_args(["calw", "--vertical"])
+    assert args.vertical is True
+
+
 def test_week_start_default_is_monday_of_current_week():
     from datetime import date, timedelta
 
