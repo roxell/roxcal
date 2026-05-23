@@ -207,6 +207,25 @@ def test_print_events_show_id_includes_id(capsys):
     assert "abc123" in capsys.readouterr().out
 
 
+def test_print_events_compact_hides_account_and_calendar(capsys):
+    items = [
+        {
+            "id": "a",
+            "title": "Standup",
+            "start": "2026-05-21T09:00:00+02:00",
+            "account": "ms",
+            "calendar_name": "Work",
+            "response": "accepted",
+        }
+    ]
+    print_events(items, compact=True)
+    out = capsys.readouterr().out
+    assert "[+]" in out
+    assert "Standup" in out
+    assert "[ms]" not in out
+    assert "[Work]" not in out
+
+
 def test_print_event_detail_includes_attendees(capsys):
     ev = {
         "title": "Sync",

@@ -56,6 +56,16 @@ def test_agenda_json_flag():
     assert args.json is True
 
 
+def test_agenda_compact_default_false():
+    args = _parser().parse_args(["agenda"])
+    assert args.compact is False
+
+
+def test_agenda_compact_flag():
+    args = _parser().parse_args(["agenda", "--compact"])
+    assert args.compact is True
+
+
 def test_add_requires_title_and_when():
     parser = _parser()
     with pytest.raises(SystemExit):

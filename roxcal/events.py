@@ -298,7 +298,11 @@ def print_week_grid_vertical(events: list[dict], start: date) -> None:
             print(f"    {time_s}  {ev.get('title', '')}")
 
 
-def print_events(items: list[dict], show_id: bool = False) -> None:
+def print_events(
+    items: list[dict],
+    show_id: bool = False,
+    compact: bool = False,
+) -> None:
     """Print a list of events with account and calendar columns padded to the
     longest value in this batch, so rows align regardless of name length.
 
@@ -306,6 +310,10 @@ def print_events(items: list[dict], show_id: bool = False) -> None:
         +  accepted          ?  not yet answered
         ~  tentative         -  declined
         *  you are organizer (space) no info / not invited
+
+    With compact=True the [account] and [calendar] columns are dropped from
+    each line. Use the show subcommand or the vim plugin's gd/<CR> expand
+    to see those for a specific event.
     """
     if not items:
         return
@@ -319,7 +327,8 @@ def print_events(items: list[dict], show_id: bool = False) -> None:
         cal = e.get("calendar_name") or e.get("calendar") or ""
         rsym = RESPONSE_SYMBOL.get(e.get("response", ""), " ")
         idpart = f"  [{e['id']}]" if show_id else ""
-        print(
-            f"  {start:<16}  [{rsym}]  [{acct:<{acct_w}}]  [{cal:<{cal_w}}]  "
-            f"{title}{location}{idpart}"
-        )
+        if compact:
+            mid = f"[{rsym}]"
+        else:
+            mid = f"[{rsym}]  [{acct:<{acct_w}}]  [{cal:<{cal_w}}]"
+        print(f"  {start:<16}  {mid}  {title}{location}{idpart}")

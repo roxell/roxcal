@@ -168,6 +168,7 @@ def _agenda_args(**overrides):
         all=False,
         all_calendars=False,
         ids=False,
+        compact=False,
         json=False,
     )
     base.update(overrides)
@@ -231,6 +232,29 @@ def test_cmd_agenda_prints_lines(capsys):
     with patch.object(cli_mod, "make_backend", return_value=backend):
         cmd_agenda(_agenda_args(), _cfg())
     assert "Hello" in capsys.readouterr().out
+
+
+def test_cmd_agenda_compact_drops_account_and_calendar(capsys):
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {
+                "start": "2026-05-21T14:00:00+02:00",
+                "title": "Standup",
+                "id": "x",
+                "account": "ms",
+                "calendar_name": "Work",
+                "response": "accepted",
+            }
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_agenda(_agenda_args(compact=True), _cfg())
+    out = capsys.readouterr().out
+    assert "[+]" in out
+    assert "Standup" in out
+    assert "[ms]" not in out
+    assert "[Work]" not in out
 
 
 # ---------- cmd_add / cmd_rsvp / cmd_show / cmd_delete / cmd_quick

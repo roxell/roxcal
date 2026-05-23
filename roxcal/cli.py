@@ -117,7 +117,7 @@ def cmd_agenda(args, cfg: Config) -> None:
     if args.json:
         print(json.dumps(items, default=str))
         return
-    print_events(items, show_id=args.ids)
+    print_events(items, show_id=args.ids, compact=args.compact)
 
 
 def cmd_add(args, cfg: Config) -> None:
@@ -310,6 +310,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ignore the per-account calendars filter and show every calendar",
     )
     sp.add_argument("--ids", action="store_true", help="Show event ids")
+    sp.add_argument(
+        "--compact",
+        action="store_true",
+        help="Drop the [account] and [calendar] columns. Use 'show' or the "
+        "vim plugin's gd/<CR> expand to see them for a specific event.",
+    )
     sp.add_argument(
         "--json",
         action="store_true",
