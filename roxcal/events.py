@@ -221,12 +221,18 @@ def print_month_grid(events: list[dict], year: int, month: int) -> None:
         print("  * today    (N) event count")
 
 
-def print_week_grid(events: list[dict], start: date, width: int = 14) -> None:
+def print_week_grid(
+    events: list[dict],
+    start: date,
+    width: int = 14,
+    color: str = "never",
+) -> None:
     """Print a 7-day side-by-side grid of events.
 
     Each day is one column of width 'width'. Events are listed under their
     day with "HH:MM title", truncated to fit. Today's column is marked with
-    a leading '*'.
+    a leading '*'. With color in {auto, always} the cells are colored by
+    RSVP state.
     """
     days = [start + timedelta(days=i) for i in range(7)]
     by_day: dict[date, list[dict]] = {d: [] for d in days}
@@ -239,6 +245,7 @@ def print_week_grid(events: list[dict], start: date, width: int = 14) -> None:
 
     today = date.today()
     line_w = width * 7
+    use_color = _should_color(color)
 
     title = f"Week of {start:%a %b %d %Y}"
     print()
@@ -275,17 +282,24 @@ def print_week_grid(events: list[dict], start: date, width: int = 14) -> None:
                     cell = content[: width - 2] + "…" + " "
                 else:
                     cell = content.ljust(width)
+                if use_color:
+                    c = ANSI_COLOR.get(ev.get("response", ""))
+                    if c:
+                        cell = f"{c}{cell}{ANSI_RESET}"
             else:
                 cell = " " * width
             row += cell
         print(row.rstrip())
 
 
-def print_week_grid_vertical(events: list[dict], start: date) -> None:
+def print_week_grid_vertical(
+    events: list[dict], start: date, color: str = "never"
+) -> None:
     """Print a 7-day week with one day per section, events stacked under it.
 
     Same data as print_week_grid but one row per event instead of one column
     per day. Better for narrow terminals and for days with many events.
+    With color in {auto, always} each event line is colored by RSVP state.
     """
     days = [start + timedelta(days=i) for i in range(7)]
     by_day: dict[date, list[dict]] = {d: [] for d in days}
@@ -297,6 +311,7 @@ def print_week_grid_vertical(events: list[dict], start: date) -> None:
         by_day[d].sort(key=lambda e: e.get("start", ""))
 
     today = date.today()
+    use_color = _should_color(color)
     title = f"Week of {start:%a %b %d %Y}"
     print()
     print(title)
@@ -321,7 +336,12 @@ def print_week_grid_vertical(events: list[dict], start: date) -> None:
                 time_s = dt.astimezone().strftime("%H:%M")
             except ValueError:
                 time_s = "all "
-            print(f"    {time_s}  {ev.get('title', '')}")
+            title_s = ev.get("title", "")
+            if use_color:
+                c = ANSI_COLOR.get(ev.get("response", ""))
+                if c:
+                    title_s = f"{c}{title_s}{ANSI_RESET}"
+            print(f"    {time_s}  {title_s}")
 
 
 def print_events(

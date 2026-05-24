@@ -582,6 +582,44 @@ def test_cmd_calw_vertical_uses_vertical_printer(capsys):
     assert "--------------" not in out
 
 
+def test_cmd_calw_config_color_is_used(capsys):
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {
+                "start": "2026-05-26T09:00:00+02:00",
+                "title": "Standup",
+                "response": "accepted",
+            }
+        ]
+    )
+    cfg = _cfg()
+    cfg.color = "always"
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_calw(_calw_args(start="2026-05-25"), cfg)
+    out = capsys.readouterr().out
+    assert "\033[32m" in out
+
+
+def test_cmd_calw_vertical_config_color_is_used(capsys):
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {
+                "start": "2026-05-26T09:00:00+02:00",
+                "title": "Standup",
+                "response": "tentative",
+            }
+        ]
+    )
+    cfg = _cfg()
+    cfg.color = "always"
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_calw(_calw_args(start="2026-05-25", vertical=True), cfg)
+    out = capsys.readouterr().out
+    assert "\033[33m" in out
+
+
 # ---------- main
 
 

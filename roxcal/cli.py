@@ -261,9 +261,9 @@ def cmd_calw(args, cfg: Config) -> None:
     end_dt = datetime.combine(end, datetime.min.time()).astimezone()
     items = _collect_events(args, cfg, start_dt, end_dt)
     if args.vertical:
-        print_week_grid_vertical(items, start)
+        print_week_grid_vertical(items, start, color=cfg.color)
     else:
-        print_week_grid(items, start, width=args.width)
+        print_week_grid(items, start, width=args.width, color=cfg.color)
 
 
 def build_parser() -> argparse.ArgumentParser:
