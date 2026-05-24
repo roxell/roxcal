@@ -200,3 +200,166 @@ backend = "google_oauth"
 """)
     with pytest.raises(SystemExit):
         load_config()
+
+
+def test_colors_defaults_match_default_scheme(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+""")
+    config = load_config()
+    assert config.colors["accepted"] == "\033[32m"
+    assert config.colors["declined"] == "\033[31m"
+    assert config.colors["tentative"] == "\033[33m"
+    assert config.colors["needsAction"] == "\033[36m"
+    assert config.colors["organizer"] == "\033[35m"
+
+
+def test_colors_named_override(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+accepted = "bright_green"
+needs_action = "blue"
+""")
+    config = load_config()
+    assert config.colors["accepted"] == "\033[92m"
+    assert config.colors["needsAction"] == "\033[34m"
+    # Untouched keys keep the default.
+    assert config.colors["declined"] == "\033[31m"
+
+
+def test_colors_int_palette(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+declined = 196
+""")
+    assert load_config().colors["declined"] == "\033[38;5;196m"
+
+
+def test_colors_hex_truecolor(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+tentative = "#d8c068"
+""")
+    assert load_config().colors["tentative"] == "\033[38;2;216;192;104m"
+
+
+def test_colors_unknown_key_exits(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+nope = "green"
+""")
+    with pytest.raises(SystemExit):
+        load_config()
+
+
+def test_colors_unknown_name_exits(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+accepted = "puce"
+""")
+    with pytest.raises(SystemExit):
+        load_config()
+
+
+def test_colors_int_out_of_range_exits(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+accepted = 300
+""")
+    with pytest.raises(SystemExit):
+        load_config()
+
+
+def test_colors_bad_hex_exits(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+accepted = "#xyz"
+""")
+    with pytest.raises(SystemExit):
+        load_config()
+
+
+def test_colors_short_hex_exits(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+accepted = "#abc"
+""")
+    with pytest.raises(SystemExit):
+        load_config()
+
+
+def test_colors_bool_rejected(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+accepted = true
+""")
+    with pytest.raises(SystemExit):
+        load_config()

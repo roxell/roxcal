@@ -13,10 +13,81 @@ CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / 
 CONFIG_FILE = CONFIG_DIR / "config.toml"
 GCALCLI_TOKEN_ROOT = Path.home() / ".gcalcli"
 
+NAMED_COLORS = {
+    "black": 30,
+    "red": 31,
+    "green": 32,
+    "yellow": 33,
+    "blue": 34,
+    "magenta": 35,
+    "cyan": 36,
+    "white": 37,
+    "bright_black": 90,
+    "bright_red": 91,
+    "bright_green": 92,
+    "bright_yellow": 93,
+    "bright_blue": 94,
+    "bright_magenta": 95,
+    "bright_cyan": 96,
+    "bright_white": 97,
+}
+
+DEFAULT_COLORS = {
+    "accepted": "\033[32m",
+    "declined": "\033[31m",
+    "tentative": "\033[33m",
+    "needsAction": "\033[36m",
+    "organizer": "\033[35m",
+}
+
+# TOML keys use snake_case but the events use the camelCase response strings
+# from Google/Microsoft. Map between the two.
+_COLOR_TOML_KEYS = {
+    "accepted": "accepted",
+    "declined": "declined",
+    "tentative": "tentative",
+    "needs_action": "needsAction",
+    "organizer": "organizer",
+}
+
 
 def die(msg: str, code: int = 1) -> NoReturn:
     print(f"roxcal: {msg}", file=sys.stderr)
     sys.exit(code)
+
+
+def _resolve_color(key: str, value) -> str:
+    """Turn a user-supplied color value into an ANSI escape string.
+
+    Accepts:
+      "green" (named, 8/16-color)
+      196     (int 0-255, ANSI 256-color palette)
+      "#88c070" (truecolor 24-bit)
+    """
+    if isinstance(value, bool):
+        die(f"color {key}: expected string or int 0-255, got bool")
+    if isinstance(value, int):
+        if not 0 <= value <= 255:
+            die(f"color {key}={value}: integer must be 0-255")
+        return f"\033[38;5;{value}m"
+    if isinstance(value, str):
+        if value.startswith("#"):
+            hex_part = value[1:]
+            if len(hex_part) != 6 or any(
+                c not in "0123456789abcdefABCDEF" for c in hex_part
+            ):
+                die(f"color {key}={value!r}: hex color must be #rrggbb")
+            r = int(hex_part[0:2], 16)
+            g = int(hex_part[2:4], 16)
+            b = int(hex_part[4:6], 16)
+            return f"\033[38;2;{r};{g};{b}m"
+        if value in NAMED_COLORS:
+            return f"\033[{NAMED_COLORS[value]}m"
+        die(
+            f"color {key}={value!r}: unknown name. Try one of "
+            f"{', '.join(sorted(NAMED_COLORS))} or a #rrggbb hex string."
+        )
+    die(f"color {key}: expected string or int 0-255, " f"got {type(value).__name__}")
 
 
 @dataclass
@@ -37,7 +108,8 @@ class Account:
 class Config:
     default_account: str
     accounts: dict[str, Account] = field(default_factory=dict)
-    color: str = "auto"  # auto | always | never; overridable by --color
+    color: str = "auto"  # auto | always | never
+    colors: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_COLORS))
 
 
 def load_config() -> Config:
@@ -77,7 +149,20 @@ def load_config() -> Config:
     color = data.get("color", "auto")
     if color not in ("auto", "always", "never"):
         die(f"color must be auto|always|never, got '{color}'")
-    return Config(default_account=default_account, accounts=accounts, color=color)
+    colors = dict(DEFAULT_COLORS)
+    for key, value in data.get("colors", {}).items():
+        if key not in _COLOR_TOML_KEYS:
+            die(
+                f"unknown color key '{key}' in [colors]. "
+                f"Known: {', '.join(_COLOR_TOML_KEYS)}"
+            )
+        colors[_COLOR_TOML_KEYS[key]] = _resolve_color(key, value)
+    return Config(
+        default_account=default_account,
+        accounts=accounts,
+        color=color,
+        colors=colors,
+    )
 
 
 def bootstrap_config() -> None:
@@ -88,10 +173,21 @@ def bootstrap_config() -> None:
 
 default_account = "roxell"
 
-# Color output for 'agenda': auto | always | never. --color on the command
-# line overrides this. 'auto' colors when stdout is a TTY. NO_COLOR env var
-# also disables color.
+# Color output for 'agenda' and 'calw': auto | always | never. 'auto'
+# colors when stdout is a TTY. NO_COLOR env var also disables color.
 # color = "auto"
+
+# Override the per-RSVP color scheme. Each value can be:
+#   "green"     - named (black/red/green/yellow/blue/magenta/cyan/white,
+#                 also bright_red, bright_green, ...)
+#   196         - integer 0-255, ANSI 256-color palette
+#   "#88c070"   - "#rrggbb" hex, truecolor (24-bit)
+# [colors]
+# accepted     = "green"
+# declined     = "red"
+# tentative    = "yellow"
+# needs_action = "cyan"
+# organizer    = "magenta"
 
 # Shared Google OAuth client (used by any google_oauth account that does not
 # override client_id/client_secret).

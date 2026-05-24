@@ -9,17 +9,10 @@ import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from .config import die
+from .config import DEFAULT_COLORS, die
 
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
-ANSI_COLOR = {
-    "accepted": "\033[32m",
-    "declined": "\033[31m",
-    "tentative": "\033[33m",
-    "needsAction": "\033[36m",
-    "organizer": "\033[35m",
-}
 ANSI_RESET = "\033[0m"
 
 
@@ -226,6 +219,7 @@ def print_week_grid(
     start: date,
     width: int = 14,
     color: str = "never",
+    colors: dict[str, str] | None = None,
 ) -> None:
     """Print a 7-day side-by-side grid of events.
 
@@ -246,6 +240,7 @@ def print_week_grid(
     today = date.today()
     line_w = width * 7
     use_color = _should_color(color)
+    palette = colors if colors is not None else DEFAULT_COLORS
 
     title = f"Week of {start:%a %b %d %Y}"
     print()
@@ -283,7 +278,7 @@ def print_week_grid(
                 else:
                     cell = content.ljust(width)
                 if use_color:
-                    c = ANSI_COLOR.get(ev.get("response", ""))
+                    c = palette.get(ev.get("response", ""))
                     if c:
                         cell = f"{c}{cell}{ANSI_RESET}"
             else:
@@ -293,7 +288,10 @@ def print_week_grid(
 
 
 def print_week_grid_vertical(
-    events: list[dict], start: date, color: str = "never"
+    events: list[dict],
+    start: date,
+    color: str = "never",
+    colors: dict[str, str] | None = None,
 ) -> None:
     """Print a 7-day week with one day per section, events stacked under it.
 
@@ -312,6 +310,7 @@ def print_week_grid_vertical(
 
     today = date.today()
     use_color = _should_color(color)
+    palette = colors if colors is not None else DEFAULT_COLORS
     title = f"Week of {start:%a %b %d %Y}"
     print()
     print(title)
@@ -338,7 +337,7 @@ def print_week_grid_vertical(
                 time_s = "all "
             title_s = ev.get("title", "")
             if use_color:
-                c = ANSI_COLOR.get(ev.get("response", ""))
+                c = palette.get(ev.get("response", ""))
                 if c:
                     title_s = f"{c}{title_s}{ANSI_RESET}"
             print(f"    {time_s}  {title_s}")
@@ -349,6 +348,7 @@ def print_events(
     show_id: bool = False,
     compact: bool = False,
     color: str = "never",
+    colors: dict[str, str] | None = None,
 ) -> None:
     """Print a list of events with account and calendar columns padded to the
     longest value in this batch, so rows align regardless of name length.
@@ -368,6 +368,7 @@ def print_events(
     if not items:
         return
     use_color = _should_color(color)
+    palette = colors if colors is not None else DEFAULT_COLORS
     acct_w = max(len(e.get("account", "?")) for e in items)
     cal_w = max(len(e.get("calendar_name") or e.get("calendar") or "") for e in items)
     for e in items:
@@ -380,8 +381,8 @@ def print_events(
         rsym = RESPONSE_SYMBOL.get(response, " ")
         idpart = f"  [{e['id']}]" if show_id else ""
         sym = f"[{rsym}]"
-        if use_color and response in ANSI_COLOR:
-            c = ANSI_COLOR[response]
+        if use_color and response in palette:
+            c = palette[response]
             sym = f"{c}{sym}{ANSI_RESET}"
             title = f"{c}{title}{ANSI_RESET}"
         if compact:

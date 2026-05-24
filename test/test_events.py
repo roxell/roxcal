@@ -207,6 +207,22 @@ def test_print_events_show_id_includes_id(capsys):
     assert "abc123" in capsys.readouterr().out
 
 
+def test_print_events_color_uses_custom_palette(capsys):
+    items = [
+        {
+            "id": "a",
+            "title": "Standup",
+            "start": "2026-05-21T09:00:00+02:00",
+            "account": "ms",
+            "response": "accepted",
+        }
+    ]
+    print_events(items, color="always", colors={"accepted": "\033[38;5;196m"})
+    out = capsys.readouterr().out
+    assert "\033[38;5;196m[+]\033[0m" in out
+    assert "\033[38;5;196mStandup\033[0m" in out
+
+
 def test_print_events_color_always_wraps_symbol_and_title(capsys):
     items = [
         {

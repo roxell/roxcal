@@ -117,7 +117,13 @@ def cmd_agenda(args, cfg: Config) -> None:
     if args.json:
         print(json.dumps(items, default=str))
         return
-    print_events(items, show_id=args.ids, compact=args.compact, color=cfg.color)
+    print_events(
+        items,
+        show_id=args.ids,
+        compact=args.compact,
+        color=cfg.color,
+        colors=cfg.colors,
+    )
 
 
 def cmd_add(args, cfg: Config) -> None:
@@ -261,9 +267,15 @@ def cmd_calw(args, cfg: Config) -> None:
     end_dt = datetime.combine(end, datetime.min.time()).astimezone()
     items = _collect_events(args, cfg, start_dt, end_dt)
     if args.vertical:
-        print_week_grid_vertical(items, start, color=cfg.color)
+        print_week_grid_vertical(items, start, color=cfg.color, colors=cfg.colors)
     else:
-        print_week_grid(items, start, width=args.width, color=cfg.color)
+        print_week_grid(
+            items,
+            start,
+            width=args.width,
+            color=cfg.color,
+            colors=cfg.colors,
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
