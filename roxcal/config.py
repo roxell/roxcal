@@ -110,6 +110,10 @@ class Config:
     accounts: dict[str, Account] = field(default_factory=dict)
     color: str = "auto"  # auto | always | never
     colors: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_COLORS))
+    # Original [colors] values as written in TOML (snake_case keys, raw
+    # str/int). The 'colors' subcommand serializes this so the vim plugin
+    # can apply the same palette without re-parsing config.toml.
+    color_overrides: dict = field(default_factory=dict)
 
 
 def load_config() -> Config:
@@ -150,6 +154,7 @@ def load_config() -> Config:
     if color not in ("auto", "always", "never"):
         die(f"color must be auto|always|never, got '{color}'")
     colors = dict(DEFAULT_COLORS)
+    color_overrides: dict = {}
     for key, value in data.get("colors", {}).items():
         if key not in _COLOR_TOML_KEYS:
             die(
@@ -157,11 +162,13 @@ def load_config() -> Config:
                 f"Known: {', '.join(_COLOR_TOML_KEYS)}"
             )
         colors[_COLOR_TOML_KEYS[key]] = _resolve_color(key, value)
+        color_overrides[key] = value
     return Config(
         default_account=default_account,
         accounts=accounts,
         color=color,
         colors=colors,
+        color_overrides=color_overrides,
     )
 
 

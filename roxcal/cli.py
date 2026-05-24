@@ -177,6 +177,11 @@ def cmd_quick(args, cfg: Config) -> None:
     make_backend(account).quick_add(args.text, calendar=args.calendar)
 
 
+def cmd_colors(args, cfg: Config) -> None:
+    del args
+    print(json.dumps(cfg.color_overrides))
+
+
 def cmd_edit(args, cfg: Config) -> None:
     account = resolve_account(cfg, args.account)
     backend = make_backend(account)
@@ -499,6 +504,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="New popup reminder lead time (10, 10m, 1h, 1d, 2h30m). " "0 to disable.",
     )
     sp.set_defaults(func=cmd_edit)
+
+    sp = sub.add_parser(
+        "colors",
+        help="Emit the user's [colors] overrides as JSON. Used by the "
+        "vim plugin to mirror the CLI palette in roxcal:// buffers.",
+    )
+    sp.set_defaults(func=cmd_colors)
 
     return p
 

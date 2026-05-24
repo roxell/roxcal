@@ -38,6 +38,63 @@ endif
 
 let s:response_symbol = {'accepted': '+', 'declined': '-', 'tentative': '~', 'needsAction': '?', 'organizer': '*'}
 
+" Map TOML keys to syntax group names defined in syntax/roxcal.vim.
+let s:color_groups = {
+    \ 'accepted': 'roxcalAccepted',
+    \ 'declined': 'roxcalDeclined',
+    \ 'tentative': 'roxcalTentative',
+    \ 'needs_action': 'roxcalPending',
+    \ 'organizer': 'roxcalOrganizer',
+    \ }
+
+" Translate one user-supplied color value (int / hex / name) into a vim
+" highlight command argument string. Empty result means 'skip this entry'.
+function! RoxcalColorArgs(value) abort
+    if type(a:value) == v:t_number
+        return 'ctermfg=' . a:value
+    endif
+    if type(a:value) == v:t_string && !empty(a:value)
+        if a:value[0] ==# '#'
+            return 'guifg=' . a:value
+        endif
+        return 'ctermfg=' . a:value
+    endif
+    return ''
+endfunction
+
+function! RoxcalApplyColors(overrides) abort
+    if type(a:overrides) != v:t_dict
+        return
+    endif
+    for [key, val] in items(a:overrides)
+        if !has_key(s:color_groups, key)
+            continue
+        endif
+        let args = RoxcalColorArgs(val)
+        if empty(args)
+            continue
+        endif
+        execute 'highlight ' . s:color_groups[key] . ' ' . args
+    endfor
+endfunction
+
+function! s:ensure_colors_loaded() abort
+    if get(s:, 'colors_loaded', 0)
+        return
+    endif
+    let s:colors_loaded = 1
+    let out = system(s:shellcmd(['colors']))
+    if v:shell_error
+        return
+    endif
+    try
+        let m = json_decode(out)
+    catch
+        return
+    endtry
+    call RoxcalApplyColors(m)
+endfunction
+
 function! s:shellcmd(args) abort
     let prefix = type(g:roxcal_command) == v:t_list ? copy(g:roxcal_command) : [g:roxcal_command]
     return join(map(prefix + a:args, 'shellescape(v:val)'), ' ')
@@ -426,6 +483,7 @@ function! s:show_add_help() abort
 endfunction
 
 function! s:open_agenda(...) abort
+    call s:ensure_colors_loaded()
     if a:0 > 0
         let args = ['agenda'] + copy(a:000) + ['--json']
     else

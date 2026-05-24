@@ -19,6 +19,7 @@ from roxcal.cli import (
     cmd_agenda,
     cmd_calm,
     cmd_calw,
+    cmd_colors,
     cmd_delete,
     cmd_edit,
     cmd_init,
@@ -618,6 +619,22 @@ def test_cmd_calw_vertical_config_color_is_used(capsys):
         cmd_calw(_calw_args(start="2026-05-25", vertical=True), cfg)
     out = capsys.readouterr().out
     assert "\033[33m" in out
+
+
+# ---------- cmd_colors
+
+
+def test_cmd_colors_emits_json(capsys):
+    cfg = _cfg()
+    cfg.color_overrides = {"accepted": "bright_green", "declined": 196}
+    cmd_colors(Namespace(), cfg)
+    out = capsys.readouterr().out
+    assert _json.loads(out) == {"accepted": "bright_green", "declined": 196}
+
+
+def test_cmd_colors_empty_when_no_overrides(capsys):
+    cmd_colors(Namespace(), _cfg())
+    assert _json.loads(capsys.readouterr().out) == {}
 
 
 # ---------- main

@@ -78,3 +78,50 @@ def test_compact_keeps_location():
     ev = dict(_EVENT, location="Online")
     line = _fmt_event(ev, compact=True)
     assert "@ Online" in line
+
+
+def _color_args(value) -> str:
+    """Ask the plugin's RoxcalColorArgs() what highlight args it would
+    emit for one config value."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        value_file = tmp_path / "v.json"
+        out_file = tmp_path / "out.txt"
+        script_file = tmp_path / "drive.vim"
+        value_file.write_text(json.dumps(value))
+        script = f"""
+            source {PLUGIN}
+            let s:v = json_decode(join(readfile('{value_file}'), "\\n"))
+            let s:r = RoxcalColorArgs(s:v)
+            call writefile([s:r], '{out_file}')
+            qa!
+        """
+        script_file.write_text(script)
+        result = subprocess.run(
+            ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if not out_file.exists():
+            raise RuntimeError(
+                f"vim failed (rc={result.returncode}): "
+                f"stdout={result.stdout!r} stderr={result.stderr!r}"
+            )
+        return out_file.read_text().rstrip("\n")
+
+
+def test_color_args_named():
+    assert _color_args("green") == "ctermfg=green"
+
+
+def test_color_args_int():
+    assert _color_args(196) == "ctermfg=196"
+
+
+def test_color_args_hex():
+    assert _color_args("#88c070") == "guifg=#88c070"
+
+
+def test_color_args_empty_string():
+    assert _color_args("") == ""

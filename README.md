@@ -413,7 +413,14 @@ The groups and their default links:
 | `gcalAttendeeYou` | `Special` | the attendee line marked `(you)` |
 | `gcalUrl` | `Underlined` | http(s) URLs anywhere |
 
-**Override (optional)** in `~/.vimrc`:
+**Override (optional)** — easiest: put a `[colors]` table in
+`~/.config/roxcal/config.toml` and the vim plugin will pick it up too.
+The first time `:RoxcalAgenda` opens it runs `roxcal colors` and applies
+each override as a `highlight` command (int → `ctermfg=N`, `#rrggbb` →
+`guifg=#rrggbb`, name → `ctermfg=name`).
+
+If you'd rather keep colors purely vim-side, put `highlight` lines in
+`~/.vimrc` instead:
 
 ```vim
 highlight gcalAccepted   ctermfg=Green   guifg=#88c070

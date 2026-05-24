@@ -349,6 +349,40 @@ accepted = "#abc"
         load_config()
 
 
+def test_colors_overrides_recorded_verbatim(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+accepted = "bright_green"
+declined = 196
+tentative = "#d8c068"
+""")
+    overrides = load_config().color_overrides
+    assert overrides == {
+        "accepted": "bright_green",
+        "declined": 196,
+        "tentative": "#d8c068",
+    }
+
+
+def test_colors_overrides_empty_when_table_absent(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+""")
+    assert load_config().color_overrides == {}
+
+
 def test_colors_bool_rejected(tmp_path, monkeypatch):
     cdir = _redirect_config(monkeypatch, tmp_path)
     cdir.mkdir()
