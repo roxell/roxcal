@@ -240,6 +240,92 @@ Time inputs accept:
 
 Durations: `30m`, `1h`, `2h30m`.
 
+## Reminders (cron / systemd)
+
+`roxcal remind` fires a command for each event starting within a
+look-ahead window. Designed to be called from cron or a user systemd
+timer to push desktop notifications via `notify-send`.
+
+Quick check (print upcoming events, do nothing else):
+
+```bash
+roxcal remind 10
+```
+
+Dry-run a notification template (prints the command without running):
+
+```bash
+roxcal remind 10 'notify-send "{title}" "{start} — {location}"' --dry-run
+```
+
+Available placeholders: `{title}`, `{start}` (HH:MM), `{start_full}`
+(YYYY-MM-DD HH:MM), `{location}`, `{account}`, `{minutes}`. Each
+token in the template becomes one argv entry (parsed with `shlex`)
+so no shell-injection risk.
+
+**Pick a window equal to your trigger interval.** If cron runs every 5
+minutes, use `remind 5`; otherwise each event notifies twice.
+
+### user systemd timer (recommended)
+
+The user systemd unit inherits your graphical session env, so
+`notify-send` finds `DISPLAY` and `DBUS_SESSION_BUS_ADDRESS`
+automatically.
+
+`~/.config/systemd/user/roxcal-remind.service`:
+
+```ini
+[Unit]
+Description=roxcal upcoming event reminder
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '%h/.local/bin/roxcal remind 5 --all "notify-send \"{title}\" \"{start} — {location}\""'
+```
+
+Wrapping in `/bin/sh -c` keeps the template (with its `{...}`
+placeholders) intact — systemd's own argument parsing would otherwise
+split on quotes.
+
+`~/.config/systemd/user/roxcal-remind.timer`:
+
+```ini
+[Unit]
+Description=roxcal reminder every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now roxcal-remind.timer
+systemctl --user list-timers roxcal-remind.timer
+```
+
+### cron
+
+cron has no graphical session env, so you have to inject it. With
+modern systemd-logind:
+
+```cron
+*/5 * * * * DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus \
+    /home/$(whoami)/.local/bin/roxcal remind 5 --all \
+    'notify-send "{title}" "{start} — {location}"'
+```
+
+(Use the absolute path to `roxcal` — cron's `$PATH` does not include
+`~/.local/bin`.)
+
+The user systemd timer is generally less brittle than cron for desktop
+notifications.
+
 ## Subcommands
 
 ```bash

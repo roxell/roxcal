@@ -90,13 +90,20 @@ def parse_duration(s: str) -> timedelta:
     return total
 
 
+def parse_event_dt(iso: str) -> datetime | None:
+    """Parse an event timestamp into a local-aware datetime, or None."""
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone()
+    except (AttributeError, ValueError):
+        return None
+
+
 def fmt_event_time(iso: str) -> str:
     """Render an ISO time stamp short. Falls back to the raw string for all-day."""
-    try:
-        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    except ValueError:
+    dt = parse_event_dt(iso)
+    if dt is None:
         return iso
-    return dt.astimezone().strftime("%Y-%m-%d %H:%M")
+    return dt.strftime("%Y-%m-%d %H:%M")
 
 
 RESPONSE_SYMBOL = {

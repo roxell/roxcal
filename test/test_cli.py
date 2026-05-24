@@ -360,3 +360,26 @@ def test_resolve_account_unknown_exits():
     )
     with pytest.raises(SystemExit):
         resolve_account(cfg, "no-such-account")
+
+
+def test_remind_requires_minutes():
+    parser = _parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["remind"])
+
+
+def test_remind_minutes_only():
+    args = _parser().parse_args(["remind", "10"])
+    assert args.minutes == 10
+    assert args.template is None
+    assert args.dry_run is False
+    assert args.all is False
+
+
+def test_remind_with_template_and_dry_run():
+    args = _parser().parse_args(
+        ["remind", "5", 'notify-send "{title}" "{start}"', "--dry-run"]
+    )
+    assert args.minutes == 5
+    assert args.template == 'notify-send "{title}" "{start}"'
+    assert args.dry_run is True

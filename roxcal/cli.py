@@ -6,12 +6,16 @@ import argparse
 import calendar as _calendar
 import json
 import re
+import shlex
+import subprocess
 from datetime import date, datetime, timedelta
 
 from .backends import make_backend
 from .config import Account, Config, die, load_config
 from .events import (
+    fmt_event_time,
     parse_duration,
+    parse_event_dt,
     parse_when,
     print_event_detail,
     print_events,
@@ -180,6 +184,72 @@ def cmd_quick(args, cfg: Config) -> None:
 def cmd_colors(args, cfg: Config) -> None:
     del args
     print(json.dumps(cfg.color_overrides))
+
+
+def _remind_format_fields(ev: dict, now: datetime) -> dict:
+    start_iso = ev.get("start", "")
+    dt = parse_event_dt(start_iso)
+    if dt is None:
+        start_hm = start_iso
+        start_full = start_iso
+        minutes = 0
+    else:
+        start_hm = dt.strftime("%H:%M")
+        start_full = dt.strftime("%Y-%m-%d %H:%M")
+        minutes = max(0, int((dt - now).total_seconds() // 60))
+    return {
+        "title": ev.get("title", "(no title)"),
+        "start": start_hm,
+        "start_full": start_full,
+        "location": ev.get("location", "") or "",
+        "account": ev.get("account", "") or "",
+        "minutes": minutes,
+    }
+
+
+def _starts_in_window(ev: dict, now: datetime, end: datetime) -> bool:
+    # Backends return events that overlap the window. remind should only
+    # fire for ones about to begin, so filter on the actual start time.
+    # The lower bound is exclusive so a meeting whose start equals a cron
+    # tick (e.g. 10:30 with cron */5 + remind 5) fires once at 10:25 and
+    # is skipped at 10:30.
+    dt = parse_event_dt(ev.get("start", ""))
+    if dt is None:
+        return False
+    return now < dt <= end
+
+
+def cmd_remind(args, cfg: Config) -> None:
+    now = datetime.now().astimezone()
+    end = now + timedelta(minutes=args.minutes)
+    items = [
+        ev
+        for ev in _collect_events(args, cfg, now, end)
+        if _starts_in_window(ev, now, end)
+    ]
+
+    if not args.template:
+        for ev in items:
+            print(f"{fmt_event_time(ev['start'])}  {ev.get('title', '')}")
+        return
+
+    try:
+        tokens = shlex.split(args.template)
+    except ValueError as exc:
+        die(f"could not parse remind template: {exc}")
+    if not tokens:
+        die("remind template is empty")
+
+    for ev in items:
+        fields = _remind_format_fields(ev, now)
+        try:
+            filled = [t.format(**fields) for t in tokens]
+        except KeyError as exc:
+            die(f"unknown placeholder {exc} in remind template")
+        if args.dry_run:
+            print(" ".join(shlex.quote(t) for t in filled))
+        else:
+            subprocess.run(filled, check=False)
 
 
 def cmd_edit(args, cfg: Config) -> None:
@@ -511,6 +581,47 @@ def build_parser() -> argparse.ArgumentParser:
         "vim plugin to mirror the CLI palette in roxcal:// buffers.",
     )
     sp.set_defaults(func=cmd_colors)
+
+    sp = sub.add_parser(
+        "remind",
+        help="Run a command for each event starting within the next N "
+        "minutes. Designed for cron or a user systemd timer + notify-send.",
+        description="Pick a window equal to your cron/systemd interval to "
+        "fire each notification exactly once.",
+    )
+    sp.add_argument("minutes", type=int, help="Look-ahead window in minutes")
+    sp.add_argument(
+        "template",
+        nargs="?",
+        default=None,
+        help='Command template, e.g. \'notify-send "{title}" "{start}"\'. '
+        "Tokenized with shlex; placeholders inside tokens are filled with "
+        "{title}, {start} (HH:MM), {start_full} (YYYY-MM-DD HH:MM), "
+        "{location}, {account}, {minutes}. If omitted, prints upcoming "
+        "events to stdout.",
+    )
+    sp.add_argument(
+        "--calendar",
+        "-c",
+        action="append",
+        default=None,
+        help="Calendar id/name. Repeat or comma-separate.",
+    )
+    sp.add_argument(
+        "--all", action="store_true", help="Check events across all accounts"
+    )
+    sp.add_argument(
+        "--all-calendars",
+        action="store_true",
+        help="Ignore the per-account calendars filter",
+    )
+    sp.add_argument(
+        "--dry-run",
+        "-n",
+        action="store_true",
+        help="Print the command(s) that would run, do not execute them.",
+    )
+    sp.set_defaults(func=cmd_remind)
 
     return p
 

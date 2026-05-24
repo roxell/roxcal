@@ -25,6 +25,7 @@ from roxcal.cli import (
     cmd_init,
     cmd_list,
     cmd_quick,
+    cmd_remind,
     cmd_rsvp,
     cmd_show,
     main,
@@ -619,6 +620,176 @@ def test_cmd_calw_vertical_config_color_is_used(capsys):
         cmd_calw(_calw_args(start="2026-05-25", vertical=True), cfg)
     out = capsys.readouterr().out
     assert "\033[33m" in out
+
+
+# ---------- cmd_remind
+
+
+def _remind_args(**overrides):
+    base = dict(
+        account=None,
+        minutes=10,
+        template=None,
+        calendar=None,
+        all=False,
+        all_calendars=False,
+        dry_run=False,
+    )
+    base.update(overrides)
+    return Namespace(**base)
+
+
+def _future_iso(minutes_ahead: int) -> str:
+    dt = datetime.now().astimezone() + timedelta(minutes=minutes_ahead)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+def test_cmd_remind_no_template_prints_upcoming(capsys):
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [{"start": _future_iso(5), "title": "Standup", "account": "a"}]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_remind(_remind_args(), _cfg())
+    out = capsys.readouterr().out
+    assert "Standup" in out
+
+
+def test_cmd_remind_no_template_silent_when_no_events(capsys):
+    backend = MagicMock()
+    backend.list_events.return_value = iter([])
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_remind(_remind_args(), _cfg())
+    assert capsys.readouterr().out == ""
+
+
+def test_cmd_remind_template_runs_command():
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [{"start": _future_iso(5), "title": "Standup", "account": "a"}]
+    )
+    with (
+        patch.object(cli_mod, "make_backend", return_value=backend),
+        patch.object(cli_mod.subprocess, "run") as mock_run,
+    ):
+        cmd_remind(
+            _remind_args(template='notify-send "{title}" "{start}"'),
+            _cfg(),
+        )
+    mock_run.assert_called_once()
+    call_args = mock_run.call_args[0][0]
+    assert call_args[0] == "notify-send"
+    assert call_args[1] == "Standup"
+    # call_args[2] is the HH:MM start time -- just check format roughly
+    assert ":" in call_args[2]
+
+
+def test_cmd_remind_dry_run_prints_command(capsys):
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [{"start": _future_iso(5), "title": "Standup", "account": "a"}]
+    )
+    with (
+        patch.object(cli_mod, "make_backend", return_value=backend),
+        patch.object(cli_mod.subprocess, "run") as mock_run,
+    ):
+        cmd_remind(
+            _remind_args(template='notify-send "{title}"', dry_run=True),
+            _cfg(),
+        )
+    mock_run.assert_not_called()
+    out = capsys.readouterr().out
+    assert "notify-send" in out
+    assert "Standup" in out
+
+
+def test_cmd_remind_unknown_placeholder_exits():
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [{"start": _future_iso(5), "title": "T", "account": "a"}]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        with pytest.raises(SystemExit):
+            cmd_remind(_remind_args(template="echo {nope}"), _cfg())
+
+
+def test_cmd_remind_window_passed_to_backend():
+    backend = MagicMock()
+    backend.list_events.return_value = iter([])
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_remind(_remind_args(minutes=7), _cfg())
+    start_dt, end_dt = backend.list_events.call_args.args[:2]
+    delta = end_dt - start_dt
+    # Allow a few seconds of jitter from the now() call inside cmd_remind.
+    assert abs(delta.total_seconds() - 7 * 60) < 5
+
+
+def test_cmd_remind_empty_template_exits():
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [{"start": _future_iso(5), "title": "T", "account": "a"}]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        with pytest.raises(SystemExit):
+            cmd_remind(_remind_args(template="   "), _cfg())
+
+
+def test_cmd_remind_skips_events_started_in_past(capsys):
+    """All-day or in-progress events overlap the window but did not just
+    start, so remind must not notify for them."""
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {"start": _future_iso(-30), "title": "Sunrise/Sunset", "account": "a"},
+            {"start": _future_iso(5), "title": "Standup", "account": "a"},
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_remind(_remind_args(), _cfg())
+    out = capsys.readouterr().out
+    assert "Sunrise" not in out
+    assert "Standup" in out
+
+
+def test_cmd_remind_skips_events_after_window(capsys):
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {"start": _future_iso(60), "title": "Far future", "account": "a"},
+            {"start": _future_iso(5), "title": "Soon", "account": "a"},
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_remind(_remind_args(), _cfg())
+    out = capsys.readouterr().out
+    assert "Far future" not in out
+    assert "Soon" in out
+
+
+def test_cmd_remind_template_does_not_fire_for_past_events():
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [{"start": _future_iso(-10), "title": "Started already", "account": "a"}]
+    )
+    with (
+        patch.object(cli_mod, "make_backend", return_value=backend),
+        patch.object(cli_mod.subprocess, "run") as mock_run,
+    ):
+        cmd_remind(_remind_args(template='notify-send "{title}"'), _cfg())
+    mock_run.assert_not_called()
+
+
+def test_cmd_remind_lower_bound_exclusive(capsys):
+    """An event whose start exactly equals 'now' should not fire — it
+    fired on the previous tick whose upper bound was 'now'."""
+    now_iso = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [{"start": now_iso, "title": "Just starting", "account": "a"}]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_remind(_remind_args(), _cfg())
+    assert "Just starting" not in capsys.readouterr().out
 
 
 # ---------- cmd_colors
