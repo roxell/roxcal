@@ -106,6 +106,10 @@ def fmt_event_time(iso: str) -> str:
     return dt.strftime("%Y-%m-%d %H:%M")
 
 
+def is_all_day(ev: dict) -> bool:
+    return "T" not in ev.get("start", "T")
+
+
 RESPONSE_SYMBOL = {
     "accepted": "+",
     "declined": "-",

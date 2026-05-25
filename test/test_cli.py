@@ -383,3 +383,22 @@ def test_remind_with_template_and_dry_run():
     assert args.minutes == 5
     assert args.template == 'notify-send "{title}" "{start}"'
     assert args.dry_run is True
+
+
+def test_conflicts_default_args():
+    args = _parser().parse_args(["conflicts"])
+    assert args.start is None
+    assert args.end is None
+    assert args.days == 7
+    assert args.all is False
+    assert args.skip_all_day is False
+
+
+def test_conflicts_with_range_and_flags():
+    args = _parser().parse_args(
+        ["conflicts", "2026-05-23", "2026-05-25", "--all", "--skip-all-day"]
+    )
+    assert args.start == "2026-05-23"
+    assert args.end == "2026-05-25"
+    assert args.all is True
+    assert args.skip_all_day is True

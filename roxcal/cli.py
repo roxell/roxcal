@@ -14,6 +14,7 @@ from .backends import make_backend
 from .config import Account, Config, die, load_config
 from .events import (
     fmt_event_time,
+    is_all_day,
     parse_duration,
     parse_event_dt,
     parse_when,
@@ -108,15 +109,7 @@ def cmd_list(args, cfg: Config) -> None:
 
 
 def cmd_agenda(args, cfg: Config) -> None:
-    if args.start:
-        start = parse_when(args.start)
-    else:
-        start = (
-            datetime.now()
-            .astimezone()
-            .replace(hour=0, minute=0, second=0, microsecond=0)
-        )
-    end = parse_when(args.end) if args.end else start + timedelta(days=args.days)
+    start, end = _resolve_window(args)
     items = _collect_events(args, cfg, start, end)
     if args.json:
         print(json.dumps(items, default=str))
@@ -250,6 +243,73 @@ def cmd_remind(args, cfg: Config) -> None:
             print(" ".join(shlex.quote(t) for t in filled))
         else:
             subprocess.run(filled, check=False)
+
+
+Cluster = list[tuple[datetime, datetime, dict]]
+
+
+def _overlap_clusters(items: list[dict]) -> list[Cluster]:
+    """Group events whose time spans overlap into clusters of two or more.
+    Back-to-back events (a.end == b.start) do not count as overlapping.
+    Assumes `items` is already sorted by start (_collect_events guarantees it).
+    """
+    clusters: list[Cluster] = []
+    current: Cluster = []
+    cluster_end: datetime | None = None
+    for ev in items:
+        s = parse_event_dt(ev.get("start", ""))
+        e = parse_event_dt(ev.get("end", ""))
+        if s is None or e is None:
+            continue
+        if current and cluster_end is not None and s < cluster_end:
+            current.append((s, e, ev))
+            cluster_end = max(cluster_end, e)
+            continue
+        if len(current) >= 2:
+            clusters.append(current)
+        current = [(s, e, ev)]
+        cluster_end = e
+    if len(current) >= 2:
+        clusters.append(current)
+    return clusters
+
+
+def _resolve_window(args) -> tuple[datetime, datetime]:
+    """Resolve the (start, end) window for agenda/conflicts. Defaults to
+    today 00:00 with end = start + args.days when not given on the CLI."""
+    if args.start:
+        start = parse_when(args.start)
+    else:
+        start = (
+            datetime.now()
+            .astimezone()
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+        )
+    end = parse_when(args.end) if args.end else start + timedelta(days=args.days)
+    return start, end
+
+
+def cmd_conflicts(args, cfg: Config) -> None:
+    start, end = _resolve_window(args)
+
+    candidates: list[dict] = []
+    for ev in _collect_events(args, cfg, start, end):
+        if ev.get("response") == "declined":
+            continue
+        if args.skip_all_day and is_all_day(ev):
+            continue
+        candidates.append(ev)
+
+    for i, cluster in enumerate(_overlap_clusters(candidates)):
+        if i > 0:
+            print()
+        overlap_start = max(s for s, _, _ in cluster)
+        overlap_end = min(e for _, e, _ in cluster)
+        print(
+            f"Overlap {fmt_event_time(overlap_start.isoformat())} "
+            f"-> {fmt_event_time(overlap_end.isoformat())}:"
+        )
+        print_events([ev for _, _, ev in cluster], color=cfg.color, colors=cfg.colors)
 
 
 def cmd_edit(args, cfg: Config) -> None:
@@ -581,6 +641,43 @@ def build_parser() -> argparse.ArgumentParser:
         "vim plugin to mirror the CLI palette in roxcal:// buffers.",
     )
     sp.set_defaults(func=cmd_colors)
+
+    sp = sub.add_parser(
+        "conflicts",
+        help="Find events whose time spans overlap (double-bookings).",
+        description="Most useful with --all to catch overlaps between "
+        "accounts. Declined events are always skipped.",
+    )
+    sp.add_argument("start", nargs="?", help="Start (default: today 00:00)")
+    sp.add_argument("end", nargs="?", help="End (default: start + --days)")
+    sp.add_argument(
+        "--days",
+        "-D",
+        type=int,
+        default=7,
+        help="Window size in days when end is omitted (default: 7)",
+    )
+    sp.add_argument(
+        "--calendar",
+        "-c",
+        action="append",
+        default=None,
+        help="Calendar id/name. Repeat or comma-separate.",
+    )
+    sp.add_argument(
+        "--all", action="store_true", help="Check events across all accounts"
+    )
+    sp.add_argument(
+        "--all-calendars",
+        action="store_true",
+        help="Ignore the per-account calendars filter",
+    )
+    sp.add_argument(
+        "--skip-all-day",
+        action="store_true",
+        help="Do not flag all-day events as conflicting with timed events.",
+    )
+    sp.set_defaults(func=cmd_conflicts)
 
     sp = sub.add_parser(
         "remind",

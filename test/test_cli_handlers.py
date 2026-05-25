@@ -20,6 +20,7 @@ from roxcal.cli import (
     cmd_calm,
     cmd_calw,
     cmd_colors,
+    cmd_conflicts,
     cmd_delete,
     cmd_edit,
     cmd_init,
@@ -806,6 +807,148 @@ def test_cmd_colors_emits_json(capsys):
 def test_cmd_colors_empty_when_no_overrides(capsys):
     cmd_colors(Namespace(), _cfg())
     assert _json.loads(capsys.readouterr().out) == {}
+
+
+# ---------- cmd_conflicts
+
+
+def _conflicts_args(**overrides):
+    base = dict(
+        account=None,
+        start="2026-05-23",
+        end=None,
+        days=7,
+        calendar=None,
+        all=False,
+        all_calendars=False,
+        skip_all_day=False,
+    )
+    base.update(overrides)
+    return Namespace(**base)
+
+
+def _ev(start, end, title, **extra):
+    base = {"start": start, "end": end, "title": title, "account": "a"}
+    base.update(extra)
+    return base
+
+
+def _run_conflicts(events, capsys, **arg_overrides) -> str:
+    backend = MagicMock()
+    backend.list_events.return_value = iter(events)
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_conflicts(_conflicts_args(**arg_overrides), _cfg())
+    return capsys.readouterr().out
+
+
+def test_cmd_conflicts_no_events_no_output(capsys):
+    assert _run_conflicts([], capsys) == ""
+
+
+def test_cmd_conflicts_single_event_no_output(capsys):
+    out = _run_conflicts(
+        [_ev("2026-05-23T10:00:00+02:00", "2026-05-23T11:00:00+02:00", "Alone")],
+        capsys,
+    )
+    assert out == ""
+
+
+def test_cmd_conflicts_back_to_back_not_a_conflict(capsys):
+    out = _run_conflicts(
+        [
+            _ev("2026-05-23T10:00:00+02:00", "2026-05-23T11:00:00+02:00", "A"),
+            _ev("2026-05-23T11:00:00+02:00", "2026-05-23T12:00:00+02:00", "B"),
+        ],
+        capsys,
+    )
+    assert out == ""
+
+
+def test_cmd_conflicts_two_overlapping(capsys):
+    out = _run_conflicts(
+        [
+            _ev("2026-05-23T10:00:00+02:00", "2026-05-23T11:00:00+02:00", "Standup"),
+            _ev("2026-05-23T10:30:00+02:00", "2026-05-23T11:30:00+02:00", "Sync"),
+        ],
+        capsys,
+    )
+    assert "Overlap" in out
+    assert "Standup" in out
+    assert "Sync" in out
+
+
+def test_cmd_conflicts_cluster_of_three(capsys):
+    out = _run_conflicts(
+        [
+            _ev("2026-05-23T10:00:00+02:00", "2026-05-23T11:30:00+02:00", "A"),
+            _ev("2026-05-23T10:30:00+02:00", "2026-05-23T11:00:00+02:00", "B"),
+            _ev("2026-05-23T11:00:00+02:00", "2026-05-23T12:00:00+02:00", "C"),
+        ],
+        capsys,
+    )
+    assert out.count("Overlap") == 1
+    for title in ("A", "B", "C"):
+        assert title in out
+
+
+def test_cmd_conflicts_skips_declined(capsys):
+    out = _run_conflicts(
+        [
+            _ev(
+                "2026-05-23T10:00:00+02:00",
+                "2026-05-23T11:00:00+02:00",
+                "Mine",
+                response="accepted",
+            ),
+            _ev(
+                "2026-05-23T10:30:00+02:00",
+                "2026-05-23T11:30:00+02:00",
+                "DontCare",
+                response="declined",
+            ),
+        ],
+        capsys,
+    )
+    assert out == ""
+
+
+def test_cmd_conflicts_all_day_flagged_by_default(capsys):
+    out = _run_conflicts(
+        [
+            _ev("2026-05-23", "2026-05-24", "OOO"),
+            _ev("2026-05-23T10:00:00+02:00", "2026-05-23T11:00:00+02:00", "Standup"),
+        ],
+        capsys,
+    )
+    assert "OOO" in out
+    assert "Standup" in out
+
+
+def test_cmd_conflicts_skip_all_day_flag(capsys):
+    out = _run_conflicts(
+        [
+            _ev("2026-05-23", "2026-05-24", "OOO"),
+            _ev("2026-05-23T10:00:00+02:00", "2026-05-23T11:00:00+02:00", "Standup"),
+        ],
+        capsys,
+        skip_all_day=True,
+    )
+    assert out == ""
+
+
+def test_cmd_conflicts_two_clusters_blank_line_between(capsys):
+    out = _run_conflicts(
+        [
+            _ev("2026-05-23T10:00:00+02:00", "2026-05-23T11:00:00+02:00", "A1"),
+            _ev("2026-05-23T10:30:00+02:00", "2026-05-23T11:00:00+02:00", "A2"),
+            _ev("2026-05-23T14:00:00+02:00", "2026-05-23T15:00:00+02:00", "B1"),
+            _ev("2026-05-23T14:30:00+02:00", "2026-05-23T15:30:00+02:00", "B2"),
+        ],
+        capsys,
+    )
+    assert out.count("Overlap") == 2
+    assert "A1" in out and "A2" in out
+    assert "B1" in out and "B2" in out
 
 
 # ---------- main

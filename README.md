@@ -226,6 +226,9 @@ roxcal --account ms add \
 # Get event ids to RSVP against
 roxcal agenda --ids
 
+# Find overlapping events (double-bookings)
+roxcal conflicts --all
+
 # Accept / decline
 roxcal --account ms rsvp <event-id> accepted
 roxcal --account linaro rsvp <event-id> declined
