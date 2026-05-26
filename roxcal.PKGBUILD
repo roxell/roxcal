@@ -29,4 +29,7 @@ package() {
   install -Dvm644 README.md -t "$pkgdir/usr/share/doc/$pkgname"
   install -Dvm644 plugin/roxcal.vim -t "$pkgdir/usr/share/vim/vimfiles/plugin"
   install -Dvm644 syntax/roxcal.vim -t "$pkgdir/usr/share/vim/vimfiles/syntax"
+  install -Dvm644 completions/roxcal.bash "$pkgdir/usr/share/bash-completion/completions/roxcal"
+  install -Dvm644 completions/roxcal.zsh "$pkgdir/usr/share/zsh/site-functions/_roxcal"
+  install -Dvm644 completions/roxcal.fish "$pkgdir/usr/share/fish/vendor_completions.d/roxcal.fish"
 }

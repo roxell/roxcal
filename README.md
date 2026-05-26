@@ -336,6 +336,28 @@ roxcal --help                  # list of subcommands
 roxcal <command> --help        # flags for a specific subcommand
 ```
 
+## Shell completions
+
+`completions/` ships small completion files for bash, zsh and fish. The
+Arch package installs them automatically. Manual install:
+
+```bash
+# bash
+mkdir -p ~/.local/share/bash-completion/completions
+cp completions/roxcal.bash ~/.local/share/bash-completion/completions/roxcal
+
+# zsh (file must be on $fpath, name must be _roxcal)
+mkdir -p ~/.zsh/completions
+cp completions/roxcal.zsh ~/.zsh/completions/_roxcal
+# in ~/.zshrc, before compinit:
+#   fpath=(~/.zsh/completions $fpath)
+
+# fish
+cp completions/roxcal.fish ~/.config/fish/completions/roxcal.fish
+```
+
+After install, `roxcal <Tab>` completes the subcommand name.
+
 ## Vim plugin
 
 A vim plugin lives at `plugin/roxcal.vim`. It opens an interactive scratch
