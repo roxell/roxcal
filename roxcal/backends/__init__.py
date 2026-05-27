@@ -58,6 +58,23 @@ class Backend:
     ) -> Iterable[dict]:
         raise NotImplementedError
 
+    def search(
+        self,
+        query: str,
+        start: datetime,
+        end: datetime,
+        calendars: list[str] | None = None,
+        all_calendars: bool = False,
+    ) -> Iterable[dict]:
+        # Subclasses with native search (Google q=, Graph $search) override
+        # this. The fallback is a client-side title/location substring match.
+        q = query.lower()
+        for ev in self.list_events(
+            start, end, calendars=calendars, all_calendars=all_calendars
+        ):
+            if q in ev.get("title", "").lower() or q in ev.get("location", "").lower():
+                yield ev
+
     def create_event(
         self,
         *,

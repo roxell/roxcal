@@ -5,7 +5,7 @@
 _roxcal() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     if [ "${COMP_CWORD}" -eq 1 ]; then
-        local subs="add agenda calm calw colors conflicts delete edit init list quick remind rsvp show"
+        local subs="add agenda calm calw colors conflicts delete edit init list quick remind rsvp search show"
         COMPREPLY=($(compgen -W "${subs}" -- "${cur}"))
     fi
 }

@@ -111,28 +111,26 @@ class GoogleOAuthBackend(Backend):
             marker = " *" if cal.get("primary") else ""
             print(f"{cal['id']:<50}  {cal.get('summary', '')}{marker}")
 
-    def list_events(self, start, end, calendars=None, all_calendars=False):
+    def _events_iter(self, start, end, calendars, all_calendars, *, q=None):
         svc = self._service()
         time_min = start.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         time_max = end.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         cal_names = self._select_calendars(
             self._calendar_list(), calendars, all_calendars
         )
-
+        me = self.account.email.lower()
         for cal_id, cal_name in cal_names.items():
-            result = (
-                svc.events()
-                .list(
-                    calendarId=cal_id,
-                    timeMin=time_min,
-                    timeMax=time_max,
-                    singleEvents=True,
-                    orderBy="startTime",
-                    maxResults=250,
-                )
-                .execute()
+            kwargs = dict(
+                calendarId=cal_id,
+                timeMin=time_min,
+                timeMax=time_max,
+                singleEvents=True,
+                orderBy="startTime",
+                maxResults=250,
             )
-            me = self.account.email.lower()
+            if q:
+                kwargs["q"] = q
+            result = svc.events().list(**kwargs).execute()
             for ev in result.get("items", []):
                 response = ""
                 for a in ev.get("attendees", []):
@@ -152,6 +150,13 @@ class GoogleOAuthBackend(Backend):
                     "calendar_name": cal_name,
                     "response": response,
                 }
+
+    def list_events(self, start, end, calendars=None, all_calendars=False):
+        yield from self._events_iter(start, end, calendars, all_calendars)
+
+    def search(self, query, start, end, calendars=None, all_calendars=False):
+        # q= searches summary, description, location and attendees server-side.
+        yield from self._events_iter(start, end, calendars, all_calendars, q=query)
 
     def create_event(
         self,

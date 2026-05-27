@@ -19,6 +19,7 @@ _roxcal() {
         'quick:Create an event from a natural-language string'
         'remind:Fire a command for events about to start'
         'rsvp:Respond to an invite'
+        'search:Search events by substring'
         'show:Show full detail of one event'
     )
     if (( CURRENT == 2 )); then

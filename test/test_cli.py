@@ -402,3 +402,29 @@ def test_conflicts_with_range_and_flags():
     assert args.end == "2026-05-25"
     assert args.all is True
     assert args.skip_all_day is True
+
+
+def test_search_requires_query():
+    parser = _parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["search"])
+
+
+def test_search_query_only():
+    args = _parser().parse_args(["search", "standup"])
+    assert args.query == "standup"
+    assert args.start is None
+    assert args.end is None
+    assert args.days == 365
+    assert args.all is False
+
+
+def test_search_full():
+    args = _parser().parse_args(
+        ["search", "lunch", "2026-01-01", "2026-12-31", "--all", "--json"]
+    )
+    assert args.query == "lunch"
+    assert args.start == "2026-01-01"
+    assert args.end == "2026-12-31"
+    assert args.all is True
+    assert args.json is True

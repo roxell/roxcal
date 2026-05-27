@@ -62,38 +62,48 @@ def _split_calendars(raw: list[str] | None) -> list[str] | None:
 
 
 def _collect_events(
-    args, cfg: Config, start_dt: datetime, end_dt: datetime
+    args,
+    cfg: Config,
+    start_dt: datetime,
+    end_dt: datetime,
+    query: str | None = None,
 ) -> list[dict]:
-    """Gather events for an agenda/calm/calw view.
+    """Gather events for an agenda/calm/calw/search view.
 
-    Handles --calendar parsing, --all vs single-account dispatch and the
-    "skip account that has no token" path. Returns a list sorted by start.
+    Handles --calendar parsing and --all vs single-account dispatch. With
+    --all, accounts that fail to authenticate are skipped with a note
+    instead of aborting the whole call. Returns a list sorted by start.
     """
     calendars = _split_calendars(args.calendar)
     items: list[dict] = []
-    if args.all:
-        for acc in cfg.accounts.values():
-            try:
-                items.extend(
-                    make_backend(acc).list_events(
-                        start_dt,
-                        end_dt,
-                        calendars=calendars,
-                        all_calendars=args.all_calendars,
-                    )
+    accounts = (
+        list(cfg.accounts.values())
+        if args.all
+        else [resolve_account(cfg, args.account)]
+    )
+    for acc in accounts:
+        backend = make_backend(acc)
+        try:
+            if query is None:
+                gen = backend.list_events(
+                    start_dt,
+                    end_dt,
+                    calendars=calendars,
+                    all_calendars=args.all_calendars,
                 )
-            except SystemExit:
-                print(f"  [{acc.name}] skipped (not logged in?)")
-    else:
-        account = resolve_account(cfg, args.account)
-        items.extend(
-            make_backend(account).list_events(
-                start_dt,
-                end_dt,
-                calendars=calendars,
-                all_calendars=args.all_calendars,
-            )
-        )
+            else:
+                gen = backend.search(
+                    query,
+                    start_dt,
+                    end_dt,
+                    calendars=calendars,
+                    all_calendars=args.all_calendars,
+                )
+            items.extend(gen)
+        except SystemExit:
+            if not args.all:
+                raise
+            print(f"  [{acc.name}] skipped (not logged in?)")
     items.sort(key=lambda e: e["start"])
     return items
 
@@ -177,6 +187,29 @@ def cmd_quick(args, cfg: Config) -> None:
 def cmd_colors(args, cfg: Config) -> None:
     del args
     print(json.dumps(cfg.color_overrides))
+
+
+def cmd_search(args, cfg: Config) -> None:
+    if args.start:
+        start = parse_when(args.start)
+    else:
+        start = datetime.now().astimezone() - timedelta(days=args.days)
+    end = (
+        parse_when(args.end)
+        if args.end
+        else datetime.now().astimezone() + timedelta(days=args.days)
+    )
+    items = _collect_events(args, cfg, start, end, query=args.query)
+    if args.json:
+        print(json.dumps(items, default=str))
+        return
+    print_events(
+        items,
+        show_id=args.ids,
+        compact=args.compact,
+        color=cfg.color,
+        colors=cfg.colors,
+    )
 
 
 def _remind_format_fields(ev: dict, now: datetime) -> dict:
@@ -641,6 +674,46 @@ def build_parser() -> argparse.ArgumentParser:
         "vim plugin to mirror the CLI palette in roxcal:// buffers.",
     )
     sp.set_defaults(func=cmd_colors)
+
+    sp = sub.add_parser(
+        "search",
+        help="Search events by substring across title and location.",
+        description="Google uses native server-side q= which also matches "
+        "description and attendees. Other backends filter client-side on "
+        "title and location.",
+    )
+    sp.add_argument("query", help="Text to search for")
+    sp.add_argument("start", nargs="?", help="Start (default: now - --days)")
+    sp.add_argument("end", nargs="?", help="End (default: now + --days)")
+    sp.add_argument(
+        "--days",
+        "-D",
+        type=int,
+        default=365,
+        help="Past and future window in days when start/end are omitted "
+        "(default: 365)",
+    )
+    sp.add_argument(
+        "--calendar",
+        "-c",
+        action="append",
+        default=None,
+        help="Calendar id/name. Repeat or comma-separate.",
+    )
+    sp.add_argument("--all", action="store_true", help="Search across all accounts")
+    sp.add_argument(
+        "--all-calendars",
+        action="store_true",
+        help="Ignore the per-account calendars filter",
+    )
+    sp.add_argument("--ids", action="store_true", help="Show event ids")
+    sp.add_argument("--compact", action="store_true", help="Compact line format")
+    sp.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit raw JSON instead of formatted lines",
+    )
+    sp.set_defaults(func=cmd_search)
 
     sp = sub.add_parser(
         "conflicts",

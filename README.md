@@ -233,6 +233,10 @@ roxcal conflicts --all
 roxcal --account ms rsvp <event-id> accepted
 roxcal --account linaro rsvp <event-id> declined
 roxcal --account ms rsvp <event-id> tentative
+
+# Search across all accounts (past year + next year by default)
+roxcal search "standup" --all
+roxcal search "lunch with maria" 2026-01-01 2026-12-31
 ```
 
 Time inputs accept:

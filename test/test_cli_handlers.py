@@ -28,6 +28,7 @@ from roxcal.cli import (
     cmd_quick,
     cmd_remind,
     cmd_rsvp,
+    cmd_search,
     cmd_show,
     main,
 )
@@ -949,6 +950,67 @@ def test_cmd_conflicts_two_clusters_blank_line_between(capsys):
     assert out.count("Overlap") == 2
     assert "A1" in out and "A2" in out
     assert "B1" in out and "B2" in out
+
+
+# ---------- cmd_search
+
+
+def _search_args(**overrides):
+    base = dict(
+        account=None,
+        query="standup",
+        start=None,
+        end=None,
+        days=365,
+        calendar=None,
+        all=False,
+        all_calendars=False,
+        ids=False,
+        compact=False,
+        json=False,
+    )
+    base.update(overrides)
+    return Namespace(**base)
+
+
+def test_cmd_search_calls_backend_search(capsys):
+    backend = MagicMock()
+    backend.search.return_value = iter(
+        [
+            {
+                "start": "2026-05-21T14:00:00+02:00",
+                "title": "Standup",
+                "id": "x",
+                "account": "a",
+            }
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_search(_search_args(), _cfg())
+    backend.search.assert_called_once()
+    assert backend.search.call_args.args[0] == "standup"
+    assert "Standup" in capsys.readouterr().out
+
+
+def test_cmd_search_default_window_is_days_back_and_forward():
+    backend = MagicMock()
+    backend.search.return_value = iter([])
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_search(_search_args(days=30), _cfg())
+    _, start_dt, end_dt = backend.search.call_args.args[:3]
+    span = end_dt - start_dt
+    assert abs(span.days - 60) <= 1
+
+
+def test_cmd_search_json_output(capsys):
+    backend = MagicMock()
+    backend.search.return_value = iter(
+        [{"start": "2026-05-21T14:00:00+02:00", "title": "X", "id": "1"}]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_search(_search_args(json=True), _cfg())
+    data = _json.loads(capsys.readouterr().out)
+    assert data[0]["title"] == "X"
 
 
 # ---------- main

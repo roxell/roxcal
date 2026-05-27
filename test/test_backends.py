@@ -97,3 +97,44 @@ def test_select_calendars_drops_inaccessible_entries():
     b = Backend(acc)
     result = b._select_calendars({"a": "A"}, ["a", "missing"], False)
     assert result == {"a": "A"}
+
+
+class _StubBackend(Backend):
+    def __init__(self, events):
+        super().__init__(Account(name="x", backend="google_oauth"))
+        self._events = events
+
+    def list_events(self, start, end, calendars=None, all_calendars=False):
+        yield from self._events
+
+
+def test_search_default_matches_title_case_insensitive():
+    b = _StubBackend(
+        [
+            {"title": "Standup with Maria", "location": "", "start": "x"},
+            {"title": "Lunch", "location": "", "start": "y"},
+        ]
+    )
+    found = list(b.search("standup", None, None))
+    assert [e["title"] for e in found] == ["Standup with Maria"]
+
+
+def test_search_default_matches_location():
+    b = _StubBackend(
+        [
+            {"title": "Standup", "location": "Room 5"},
+            {"title": "Lunch", "location": "Cafeteria"},
+        ]
+    )
+    found = list(b.search("room", None, None))
+    assert [e["title"] for e in found] == ["Standup"]
+
+
+def test_search_default_skips_when_no_match():
+    b = _StubBackend([{"title": "Standup", "location": "Room 5"}])
+    assert list(b.search("nothere", None, None)) == []
+
+
+def test_search_default_handles_missing_fields():
+    b = _StubBackend([{"start": "x"}, {"title": "ok"}])
+    assert list(b.search("ok", None, None)) == [{"title": "ok"}]
