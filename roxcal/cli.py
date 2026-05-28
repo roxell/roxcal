@@ -189,6 +189,76 @@ def cmd_colors(args, cfg: Config) -> None:
     print(json.dumps(cfg.color_overrides))
 
 
+def _ics_events(path: str):
+    """Yield (title, start, end, location, description, attendees) tuples
+    from a .ics file. Skips entries without DTSTART or DTEND."""
+    from icalendar import Calendar
+
+    try:
+        with open(path, "rb") as fh:
+            data = fh.read()
+    except OSError as exc:
+        die(f"could not read {path}: {exc}")
+    try:
+        cal = Calendar.from_ical(data)
+    except ValueError as exc:
+        die(f"could not parse {path}: {exc}")
+    for component in cal.walk():
+        if component.name != "VEVENT":
+            continue
+        dtstart = component.get("DTSTART")
+        dtend = component.get("DTEND")
+        if dtstart is None or dtend is None:
+            continue
+        attendees = []
+        raw_att = component.get("ATTENDEE", [])
+        if not isinstance(raw_att, list):
+            raw_att = [raw_att]
+        for a in raw_att:
+            email = str(a).removeprefix("mailto:").removeprefix("MAILTO:")
+            attendees.append(email)
+        yield (
+            str(component.get("SUMMARY", "(no title)")),
+            dtstart.dt,
+            dtend.dt,
+            str(component.get("LOCATION", "")),
+            str(component.get("DESCRIPTION", "")),
+            attendees,
+        )
+
+
+def cmd_import(args, cfg: Config) -> None:
+    account = resolve_account(cfg, args.account)
+    backend = make_backend(account)
+    notified: list[str] = []
+    for title, start, end, location, description, attendees in _ics_events(args.file):
+        body = description
+        if attendees and not args.with_attendees:
+            # Default: don't re-invite people the organizer already invited.
+            # Keep the addresses in the description so the info is not lost.
+            tail = "Attendees: " + ", ".join(attendees)
+            body = f"{body}\n\n{tail}" if body else tail
+        attendee_list = attendees if args.with_attendees else []
+        if args.dry_run:
+            print(f"Would import: {title}  {fmt_event_time(start.isoformat())}")
+            continue
+        backend.create_event(
+            title=title,
+            start=start,
+            end=end,
+            attendees=attendee_list,
+            calendar=args.calendar,
+            description=body,
+            location=location,
+        )
+        notified.append(f"{title} ({fmt_event_time(start.isoformat())})")
+    if args.notify and notified:
+        subprocess.run(
+            ["notify-send", "roxcal: imported", "\n".join(notified)],
+            check=False,
+        )
+
+
 def cmd_search(args, cfg: Config) -> None:
     if args.start:
         start = parse_when(args.start)
@@ -674,6 +744,37 @@ def build_parser() -> argparse.ArgumentParser:
         "vim plugin to mirror the CLI palette in roxcal:// buffers.",
     )
     sp.set_defaults(func=cmd_colors)
+
+    sp = sub.add_parser(
+        "import",
+        help="Add the events in a .ics file to your calendar.",
+        description="Useful as a mail-client handler for text/calendar "
+        "attachments. By default the original attendees stay in the "
+        "description; --with-attendees re-invites them.",
+    )
+    sp.add_argument("file", help=".ics file path")
+    sp.add_argument(
+        "--calendar",
+        "-c",
+        help="Calendar id/name. Default: backend's primary.",
+    )
+    sp.add_argument(
+        "--with-attendees",
+        action="store_true",
+        help="Re-invite the attendees listed in the .ics.",
+    )
+    sp.add_argument(
+        "--notify",
+        action="store_true",
+        help="Fire notify-send for each imported event (use from a .desktop).",
+    )
+    sp.add_argument(
+        "--dry-run",
+        "-n",
+        action="store_true",
+        help="Print what would be imported, do not create events.",
+    )
+    sp.set_defaults(func=cmd_import)
 
     sp = sub.add_parser(
         "search",

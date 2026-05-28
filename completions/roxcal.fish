@@ -16,6 +16,7 @@ complete -c roxcal -n __roxcal_no_subcommand -a colors -d 'Emit the [colors] ove
 complete -c roxcal -n __roxcal_no_subcommand -a conflicts -d 'Find overlapping events'
 complete -c roxcal -n __roxcal_no_subcommand -a delete -d 'Delete an event'
 complete -c roxcal -n __roxcal_no_subcommand -a edit -d 'Edit an event'
+complete -c roxcal -n __roxcal_no_subcommand -a import -d 'Add events from a .ics file'
 complete -c roxcal -n __roxcal_no_subcommand -a init -d 'OAuth or verify credentials'
 complete -c roxcal -n __roxcal_no_subcommand -a list -d 'List calendars'
 complete -c roxcal -n __roxcal_no_subcommand -a quick -d 'Natural-language event create'

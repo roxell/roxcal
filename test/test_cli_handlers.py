@@ -23,6 +23,7 @@ from roxcal.cli import (
     cmd_conflicts,
     cmd_delete,
     cmd_edit,
+    cmd_import,
     cmd_init,
     cmd_list,
     cmd_quick,
@@ -1011,6 +1012,106 @@ def test_cmd_search_json_output(capsys):
         cmd_search(_search_args(json=True), _cfg())
     data = _json.loads(capsys.readouterr().out)
     assert data[0]["title"] == "X"
+
+
+# ---------- cmd_import
+
+
+_ICS = b"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:1@test
+SUMMARY:Standup
+DTSTART:20260530T080000Z
+DTEND:20260530T083000Z
+LOCATION:Online
+DESCRIPTION:Daily standup
+ORGANIZER:mailto:lead@example.com
+ATTENDEE;CN=Maria:mailto:maria@example.com
+ATTENDEE;CN=Peter:mailto:peter@example.com
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+def _import_args(file, **overrides):
+    base = dict(
+        account=None,
+        file=file,
+        calendar=None,
+        with_attendees=False,
+        notify=False,
+        dry_run=False,
+    )
+    base.update(overrides)
+    return Namespace(**base)
+
+
+def _write_ics(tmp_path, body=_ICS):
+    path = tmp_path / "invite.ics"
+    path.write_bytes(body)
+    return str(path)
+
+
+def test_cmd_import_creates_event(tmp_path):
+    path = _write_ics(tmp_path)
+    backend = MagicMock()
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_import(_import_args(path), _cfg())
+    backend.create_event.assert_called_once()
+    kwargs = backend.create_event.call_args.kwargs
+    assert kwargs["title"] == "Standup"
+    assert kwargs["location"] == "Online"
+    # Default: attendees moved to description, not re-invited.
+    assert kwargs["attendees"] == []
+    assert "maria@example.com" in kwargs["description"]
+    assert "peter@example.com" in kwargs["description"]
+
+
+def test_cmd_import_with_attendees_reinvites(tmp_path):
+    path = _write_ics(tmp_path)
+    backend = MagicMock()
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_import(_import_args(path, with_attendees=True), _cfg())
+    kwargs = backend.create_event.call_args.kwargs
+    assert set(kwargs["attendees"]) == {"maria@example.com", "peter@example.com"}
+
+
+def test_cmd_import_dry_run_does_not_call_backend(tmp_path, capsys):
+    path = _write_ics(tmp_path)
+    backend = MagicMock()
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_import(_import_args(path, dry_run=True), _cfg())
+    backend.create_event.assert_not_called()
+    out = capsys.readouterr().out
+    assert "Would import: Standup" in out
+
+
+def test_cmd_import_missing_file_exits(tmp_path):
+    with pytest.raises(SystemExit):
+        cmd_import(_import_args(str(tmp_path / "nope.ics")), _cfg())
+
+
+def test_cmd_import_invalid_ics_exits(tmp_path):
+    path = tmp_path / "bad.ics"
+    path.write_bytes(b"this is not an ics file at all")
+    with pytest.raises(SystemExit):
+        cmd_import(_import_args(str(path)), _cfg())
+
+
+def test_cmd_import_calls_notify_send_when_flag_set(tmp_path):
+    path = _write_ics(tmp_path)
+    backend = MagicMock()
+    with (
+        patch.object(cli_mod, "make_backend", return_value=backend),
+        patch.object(cli_mod.subprocess, "run") as mock_run,
+    ):
+        cmd_import(_import_args(path, notify=True), _cfg())
+    assert mock_run.called
+    call_args = mock_run.call_args[0][0]
+    assert call_args[0] == "notify-send"
+    assert "Standup" in call_args[2]
 
 
 # ---------- main

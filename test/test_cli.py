@@ -428,3 +428,20 @@ def test_search_full():
     assert args.end == "2026-12-31"
     assert args.all is True
     assert args.json is True
+
+
+def test_import_requires_file():
+    parser = _parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["import"])
+
+
+def test_import_with_file_and_flags():
+    args = _parser().parse_args(
+        ["import", "/tmp/x.ics", "--calendar", "work", "--with-attendees", "-n"]
+    )
+    assert args.file == "/tmp/x.ics"
+    assert args.calendar == "work"
+    assert args.with_attendees is True
+    assert args.dry_run is True
+    assert args.notify is False

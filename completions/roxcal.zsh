@@ -14,6 +14,7 @@ _roxcal() {
         'conflicts:Find overlapping events (double-bookings)'
         'delete:Delete an event'
         'edit:Update fields of an event'
+        'import:Add events from a .ics file'
         'init:Run OAuth or verify credentials for the account'
         'list:List calendars on the account'
         'quick:Create an event from a natural-language string'
