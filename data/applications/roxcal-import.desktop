@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=roxcal — import calendar invite
+Comment=Add the events in a .ics attachment to your calendar
+Exec=roxcal import %f --notify
+MimeType=text/calendar;application/ics;
+Categories=Office;Calendar;
+NoDisplay=true
+Terminal=false

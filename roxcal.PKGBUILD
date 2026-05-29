@@ -32,4 +32,5 @@ package() {
   install -Dvm644 completions/roxcal.bash "$pkgdir/usr/share/bash-completion/completions/roxcal"
   install -Dvm644 completions/roxcal.zsh "$pkgdir/usr/share/zsh/site-functions/_roxcal"
   install -Dvm644 completions/roxcal.fish "$pkgdir/usr/share/fish/vendor_completions.d/roxcal.fish"
+  install -Dvm644 data/applications/roxcal-import.desktop "$pkgdir/usr/share/applications/roxcal-import.desktop"
 }

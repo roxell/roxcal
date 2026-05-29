@@ -362,6 +362,40 @@ cp completions/roxcal.fish ~/.config/fish/completions/roxcal.fish
 
 After install, `roxcal <Tab>` completes the subcommand name.
 
+## Mail-client handler for .ics attachments
+
+`data/applications/roxcal-import.desktop` registers roxcal as a
+handler for `text/calendar` files. Clicking an `.ics` attachment in
+Thunderbird, Evolution or any freedesktop-aware mail client then runs
+`roxcal import <file> --notify`, which adds the event to your default
+account and fires a `notify-send`.
+
+The Arch package installs the `.desktop` file. Manual install:
+
+```bash
+mkdir -p ~/.local/share/applications
+cp data/applications/roxcal-import.desktop ~/.local/share/applications/
+update-desktop-database ~/.local/share/applications
+```
+
+Make it the default for `text/calendar`:
+
+```bash
+xdg-mime default roxcal-import.desktop text/calendar
+xdg-mime default roxcal-import.desktop application/ics
+```
+
+Verify:
+
+```bash
+xdg-mime query default text/calendar
+```
+
+The handler imports to the default account's primary calendar. To pick
+a different account or calendar, edit the `Exec=` line in the
+`.desktop` file (e.g. `roxcal --account work import %f --calendar Team
+--notify`).
+
 ## Vim plugin
 
 A vim plugin lives at `plugin/roxcal.vim`. It opens an interactive scratch
