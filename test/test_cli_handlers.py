@@ -997,6 +997,7 @@ def _search_args(**overrides):
         all_calendars=False,
         ids=False,
         compact=False,
+        full=False,
         json=False,
     )
     base.update(overrides)
@@ -1032,15 +1033,85 @@ def test_cmd_search_default_window_is_days_back_and_forward():
     assert abs(span.days - 60) <= 1
 
 
+def test_cmd_search_default_drops_description_only_matches(capsys):
+    """Google's q= matches description and attendees, which can surface
+    surprising hits. By default cmd_search narrows to title+location."""
+    backend = MagicMock()
+    backend.search.return_value = iter(
+        [
+            {
+                "start": "2026-05-21T14:00:00+02:00",
+                "title": "Standup",
+                "id": "a",
+                "account": "x",
+            },
+            {
+                "start": "2026-05-22T14:00:00+02:00",
+                "title": "Dirty talk and sex",
+                "id": "b",
+                "account": "x",
+            },
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_search(_search_args(query="standup"), _cfg())
+    out = capsys.readouterr().out
+    assert "Standup" in out
+    assert "Dirty talk and sex" not in out
+
+
+def test_cmd_search_full_keeps_server_matches(capsys):
+    backend = MagicMock()
+    backend.search.return_value = iter(
+        [
+            {
+                "start": "2026-05-21T14:00:00+02:00",
+                "title": "Standup",
+                "id": "a",
+                "account": "x",
+            },
+            {
+                "start": "2026-05-22T14:00:00+02:00",
+                "title": "Dirty talk and sex",
+                "id": "b",
+                "account": "x",
+            },
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_search(_search_args(query="standup", full=True), _cfg())
+    out = capsys.readouterr().out
+    assert "Standup" in out
+    assert "Dirty talk and sex" in out
+
+
+def test_cmd_search_default_keeps_location_match(capsys):
+    backend = MagicMock()
+    backend.search.return_value = iter(
+        [
+            {
+                "start": "2026-05-21T14:00:00+02:00",
+                "title": "Standup",
+                "location": "Sprint Room",
+                "id": "a",
+                "account": "x",
+            }
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_search(_search_args(query="sprint"), _cfg())
+    assert "Standup" in capsys.readouterr().out
+
+
 def test_cmd_search_json_output(capsys):
     backend = MagicMock()
     backend.search.return_value = iter(
-        [{"start": "2026-05-21T14:00:00+02:00", "title": "X", "id": "1"}]
+        [{"start": "2026-05-21T14:00:00+02:00", "title": "Standup", "id": "1"}]
     )
     with patch.object(cli_mod, "make_backend", return_value=backend):
         cmd_search(_search_args(json=True), _cfg())
     data = _json.loads(capsys.readouterr().out)
-    assert data[0]["title"] == "X"
+    assert data[0]["title"] == "Standup"
 
 
 # ---------- cmd_import

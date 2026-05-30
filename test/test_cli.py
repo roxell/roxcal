@@ -435,6 +435,16 @@ def test_search_full():
     assert args.json is True
 
 
+def test_search_full_flag_default_false():
+    args = _parser().parse_args(["search", "x"])
+    assert args.full is False
+
+
+def test_search_full_flag():
+    args = _parser().parse_args(["search", "x", "--full"])
+    assert args.full is True
+
+
 def test_import_requires_file():
     parser = _parser()
     with pytest.raises(SystemExit):

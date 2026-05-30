@@ -270,6 +270,16 @@ def cmd_search(args, cfg: Config) -> None:
         else datetime.now().astimezone() + timedelta(days=args.days)
     )
     items = _collect_events(args, cfg, start, end, query=args.query)
+    if not args.full:
+        # Google's server-side q= also matches description and attendees,
+        # which surfaces surprising hits. Narrow to title + location so
+        # the default behavior matches the non-Google backends.
+        q = args.query.lower()
+        items = [
+            ev
+            for ev in items
+            if q in ev.get("title", "").lower() or q in ev.get("location", "").lower()
+        ]
     if args.json:
         print(json.dumps(items, default=str))
         return
@@ -830,6 +840,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp.add_argument("--ids", action="store_true", help="Show event ids")
     sp.add_argument("--compact", action="store_true", help="Compact line format")
+    sp.add_argument(
+        "--full",
+        action="store_true",
+        help="Also match description and attendees (Google only). Default "
+        "narrows to title and location to match the non-Google backends.",
+    )
     sp.add_argument(
         "--json",
         action="store_true",

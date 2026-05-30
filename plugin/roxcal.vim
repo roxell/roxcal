@@ -5,8 +5,10 @@
 "                                 No args  ->  'agenda --all --json'.
 "                                 Extra args are passed to roxcal verbatim, e.g.
 "                                   :RoxcalAgenda --account linaro -D 14
-"   :RoxcalSearch [query]         search across all accounts. Without a
-"                                 query, prompts for one.
+"   :RoxcalSearch [args]          search across all accounts. With no args,
+"                                 prompts for the query. Args are passed
+"                                 to `roxcal search` verbatim, e.g.
+"                                   :RoxcalSearch --full sprint
 "   :RoxcalConflicts [args]       show overlapping events grouped by cluster.
 "                                 No args  ->  'conflicts --all'.
 "   :RoxcalAdd [account]          compose a new event in a buffer.
@@ -514,7 +516,7 @@ function! s:show_agenda_help() abort
     echo  ""
     echo  "Commands (also work from anywhere)"
     echo  "  :RoxcalAgenda [args]                    reopen with passthrough args"
-    echo  "  :RoxcalSearch [query]                   search across all accounts"
+    echo  "  :RoxcalSearch [args]                    search across all accounts (e.g. --full sprint)"
     echo  "  :RoxcalConflicts [args]                 show overlapping events"
     echo  "  :RoxcalAdd [account]                    compose a new event"
     echo  "  :RoxcalReply accepted|declined|tentative   open the rsvp message buffer"
@@ -580,11 +582,23 @@ function! s:open_agenda(...) abort
 endfunction
 
 function! s:open_search(...) abort
-    let q = a:0 > 0 ? join(a:000) : input('Search: ')
-    if empty(q)
-        return
+    let cli_args = copy(a:000)
+    " Prompt for a query when only flags were given (no positional term).
+    let has_query = 0
+    for a in cli_args
+        if a !~# '^-'
+            let has_query = 1
+            break
+        endif
+    endfor
+    if !has_query
+        let q = input('Search: ')
+        if empty(q)
+            return
+        endif
+        call add(cli_args, q)
     endif
-    call s:open_view('roxcal://search', ['search', q, '--all', '--json'], 0)
+    call s:open_view('roxcal://search', ['search'] + cli_args + ['--all', '--json'], 0)
 endfunction
 
 function! s:open_conflicts(...) abort
