@@ -824,6 +824,7 @@ def _conflicts_args(**overrides):
         all=False,
         all_calendars=False,
         skip_all_day=False,
+        json=False,
     )
     base.update(overrides)
     return Namespace(**base)
@@ -936,6 +937,34 @@ def test_cmd_conflicts_skip_all_day_flag(capsys):
         skip_all_day=True,
     )
     assert out == ""
+
+
+def test_cmd_conflicts_json_emits_cluster_structure(capsys):
+    out = _run_conflicts(
+        [
+            _ev(
+                "2026-05-23T10:00:00+02:00",
+                "2026-05-23T11:00:00+02:00",
+                "A",
+                id="a",
+            ),
+            _ev(
+                "2026-05-23T10:30:00+02:00",
+                "2026-05-23T11:00:00+02:00",
+                "B",
+                id="b",
+            ),
+        ],
+        capsys,
+        json=True,
+    )
+    data = _json.loads(out)
+    assert len(data) == 1
+    cluster = data[0]
+    assert "overlap_start" in cluster
+    assert "overlap_end" in cluster
+    titles = [e["title"] for e in cluster["events"]]
+    assert titles == ["A", "B"]
 
 
 def test_cmd_conflicts_two_clusters_blank_line_between(capsys):

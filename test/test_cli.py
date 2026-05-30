@@ -404,6 +404,11 @@ def test_conflicts_with_range_and_flags():
     assert args.skip_all_day is True
 
 
+def test_conflicts_json_flag():
+    args = _parser().parse_args(["conflicts", "--json"])
+    assert args.json is True
+
+
 def test_search_requires_query():
     parser = _parser()
     with pytest.raises(SystemExit):

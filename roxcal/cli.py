@@ -351,6 +351,12 @@ def cmd_remind(args, cfg: Config) -> None:
 Cluster = list[tuple[datetime, datetime, dict]]
 
 
+def _overlap_bounds(cluster: Cluster) -> tuple[datetime, datetime]:
+    """Return the (start, end) of the time slice common to every event
+    in the cluster — i.e. the actual overlap window."""
+    return max(s for s, _, _ in cluster), min(e for _, e, _ in cluster)
+
+
 def _overlap_clusters(items: list[dict]) -> list[Cluster]:
     """Group events whose time spans overlap into clusters of two or more.
     Back-to-back events (a.end == b.start) do not count as overlapping.
@@ -403,14 +409,29 @@ def cmd_conflicts(args, cfg: Config) -> None:
             continue
         candidates.append(ev)
 
-    for i, cluster in enumerate(_overlap_clusters(candidates)):
+    clusters = _overlap_clusters(candidates)
+
+    if args.json:
+        out = []
+        for c in clusters:
+            ov_start, ov_end = _overlap_bounds(c)
+            out.append(
+                {
+                    "overlap_start": ov_start.isoformat(),
+                    "overlap_end": ov_end.isoformat(),
+                    "events": [ev for _, _, ev in c],
+                }
+            )
+        print(json.dumps(out, default=str))
+        return
+
+    for i, cluster in enumerate(clusters):
         if i > 0:
             print()
-        overlap_start = max(s for s, _, _ in cluster)
-        overlap_end = min(e for _, e, _ in cluster)
+        ov_start, ov_end = _overlap_bounds(cluster)
         print(
-            f"Overlap {fmt_event_time(overlap_start.isoformat())} "
-            f"-> {fmt_event_time(overlap_end.isoformat())}:"
+            f"Overlap {fmt_event_time(ov_start.isoformat())} "
+            f"-> {fmt_event_time(ov_end.isoformat())}:"
         )
         print_events([ev for _, _, ev in cluster], color=cfg.color, colors=cfg.colors)
 
@@ -850,6 +871,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-all-day",
         action="store_true",
         help="Do not flag all-day events as conflicting with timed events.",
+    )
+    sp.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit clusters as JSON (used by the vim plugin).",
     )
     sp.set_defaults(func=cmd_conflicts)
 

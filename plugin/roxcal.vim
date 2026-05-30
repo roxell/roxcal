@@ -5,6 +5,10 @@
 "                                 No args  ->  'agenda --all --json'.
 "                                 Extra args are passed to roxcal verbatim, e.g.
 "                                   :RoxcalAgenda --account linaro -D 14
+"   :RoxcalSearch [query]         search across all accounts. Without a
+"                                 query, prompts for one.
+"   :RoxcalConflicts [args]       show overlapping events grouped by cluster.
+"                                 No args  ->  'conflicts --all'.
 "   :RoxcalAdd [account]          compose a new event in a buffer.
 "   :RoxcalReload                 reload the current roxcal buffer.
 "
@@ -147,26 +151,57 @@ function! RoxcalFmtEvent(ev, compact) abort
     return s:fmt_event(a:ev, a:compact)
 endfunction
 
-function! s:render(events) abort
+function! s:flatten_clusters(clusters) abort
+    let out = []
+    for c in a:clusters
+        for ev in c.events
+            call add(out, ev)
+        endfor
+    endfor
+    return out
+endfunction
+
+function! s:render(events, clusters) abort
+    " a:clusters is v:null for plain agenda/search; a list of
+    " {overlap_start, overlap_end, events} for conflicts.
     setlocal modifiable
     silent %delete _
     let b:roxcal_events = a:events
+    let b:roxcal_clusters = a:clusters
     let b:roxcal_expanded = {}
     if !exists('b:roxcal_compact')
         let b:roxcal_compact = get(g:, 'roxcal_compact', 0)
     endif
     let b:roxcal_line_to_idx = {}
+    let b:roxcal_separator_lines = {}
     let lines = []
     let line_no = 1
     let idx = 0
-    for ev in a:events
-        call add(lines, s:fmt_event(ev, b:roxcal_compact))
-        let b:roxcal_line_to_idx[line_no] = idx
-        let line_no += 1
-        let idx += 1
-    endfor
+    let is_clusters = type(a:clusters) == v:t_list
+    if is_clusters
+        for cluster in a:clusters
+            let ovs = s:fmt_iso_local(get(cluster, 'overlap_start', ''))
+            let ove = strpart(s:fmt_iso_local(get(cluster, 'overlap_end', '')), 11, 5)
+            call add(lines, printf('Overlap %s -> %s:', ovs, ove))
+            let b:roxcal_separator_lines[line_no] = 1
+            let line_no += 1
+            for ev in cluster.events
+                call add(lines, s:fmt_event(ev, b:roxcal_compact))
+                let b:roxcal_line_to_idx[line_no] = idx
+                let line_no += 1
+                let idx += 1
+            endfor
+        endfor
+    else
+        for ev in a:events
+            call add(lines, s:fmt_event(ev, b:roxcal_compact))
+            let b:roxcal_line_to_idx[line_no] = idx
+            let line_no += 1
+            let idx += 1
+        endfor
+    endif
     if empty(lines)
-        let lines = ['  (no events)']
+        let lines = [is_clusters ? '  (no conflicts)' : '  (no events)']
     endif
     call setline(1, lines)
     setlocal nomodifiable nomodified
@@ -178,18 +213,23 @@ function! s:toggle_compact() abort
         return
     endif
     let b:roxcal_compact = !get(b:, 'roxcal_compact', 0)
-    call s:render(b:roxcal_events)
+    call s:render(b:roxcal_events, get(b:, 'roxcal_clusters', v:null))
     echom b:roxcal_compact ? 'roxcal: compact on' : 'roxcal: compact off'
 endfunction
 
 " Walk up to the nearest event header line; return the index into
-" b:roxcal_events or -1.
+" b:roxcal_events or -1. A separator line (cluster header) stops the
+" walk so keys pressed on it become no-ops.
 function! s:idx_under_cursor() abort
     if !exists('b:roxcal_line_to_idx')
         return -1
     endif
     let line = line('.')
+    let sep = get(b:, 'roxcal_separator_lines', {})
     while line > 0 && !has_key(b:roxcal_line_to_idx, line)
+        if has_key(sep, line)
+            return -1
+        endif
         let line -= 1
     endwhile
     if line == 0
@@ -318,9 +358,14 @@ endfunction
 
 function! s:reload() abort
     let args = get(b:, 'roxcal_args', ['agenda', '--all', '--json'])
-    let events = s:run_json(args)
-    if type(events) == v:t_list
-        call s:render(events)
+    let payload = s:run_json(args)
+    if type(payload) != v:t_list
+        return
+    endif
+    if len(args) > 0 && args[0] ==# 'conflicts'
+        call s:render(s:flatten_clusters(payload), payload)
+    else
+        call s:render(payload, v:null)
     endif
 endfunction
 
@@ -469,6 +514,8 @@ function! s:show_agenda_help() abort
     echo  ""
     echo  "Commands (also work from anywhere)"
     echo  "  :RoxcalAgenda [args]                    reopen with passthrough args"
+    echo  "  :RoxcalSearch [query]                   search across all accounts"
+    echo  "  :RoxcalConflicts [args]                 show overlapping events"
     echo  "  :RoxcalAdd [account]                    compose a new event"
     echo  "  :RoxcalReply accepted|declined|tentative   open the rsvp message buffer"
     echo  "  :RoxcalReload                           reload"
@@ -482,30 +529,7 @@ function! s:show_add_help() abort
     echo  "  ?            this help"
 endfunction
 
-function! s:open_agenda(...) abort
-    call s:ensure_colors_loaded()
-    if a:0 > 0
-        let args = ['agenda'] + copy(a:000) + ['--json']
-    else
-        let args = ['agenda', '--all', '--json']
-    endif
-    let events = s:run_json(args)
-    if type(events) != v:t_list
-        return
-    endif
-
-    let bufnr = bufnr('roxcal://agenda')
-    if bufnr < 0
-        enew
-        silent file roxcal://agenda
-        setlocal buftype=nofile bufhidden=hide nowrap noswapfile
-        setlocal filetype=roxcal
-    else
-        execute 'buffer' bufnr
-    endif
-    let b:roxcal_args = args
-    call s:render(events)
-
+function! s:apply_event_mappings() abort
     nnoremap <buffer> <silent> <CR> :call <SID>toggle_expand()<CR>
     nnoremap <buffer> <silent> a    :call <SID>rsvp('accepted')<CR>
     nnoremap <buffer> <silent> d    :call <SID>rsvp('declined')<CR>
@@ -520,6 +544,52 @@ function! s:open_agenda(...) abort
     nnoremap <buffer> <silent> D    :call <SID>delete_event()<CR>
     nnoremap <buffer> <silent> E    :call <SID>edit_under_cursor()<CR>
     nnoremap <buffer> <silent> ?    :call <SID>show_agenda_help()<CR>
+endfunction
+
+function! s:open_event_buffer(name) abort
+    let bufnr = bufnr(a:name)
+    if bufnr < 0
+        enew
+        execute 'silent file ' . a:name
+        setlocal buftype=nofile bufhidden=hide nowrap noswapfile
+        setlocal filetype=roxcal
+    else
+        execute 'buffer' bufnr
+    endif
+endfunction
+
+function! s:open_view(name, args, is_clusters) abort
+    call s:ensure_colors_loaded()
+    let payload = s:run_json(a:args)
+    if type(payload) != v:t_list
+        return
+    endif
+    call s:open_event_buffer(a:name)
+    let b:roxcal_args = a:args
+    if a:is_clusters
+        call s:render(s:flatten_clusters(payload), payload)
+    else
+        call s:render(payload, v:null)
+    endif
+    call s:apply_event_mappings()
+endfunction
+
+function! s:open_agenda(...) abort
+    let args = a:0 > 0 ? (['agenda'] + copy(a:000) + ['--json']) : ['agenda', '--all', '--json']
+    call s:open_view('roxcal://agenda', args, 0)
+endfunction
+
+function! s:open_search(...) abort
+    let q = a:0 > 0 ? join(a:000) : input('Search: ')
+    if empty(q)
+        return
+    endif
+    call s:open_view('roxcal://search', ['search', q, '--all', '--json'], 0)
+endfunction
+
+function! s:open_conflicts(...) abort
+    let args = a:0 > 0 ? (['conflicts'] + copy(a:000) + ['--json']) : ['conflicts', '--all', '--json']
+    call s:open_view('roxcal://conflicts', args, 1)
 endfunction
 
 function! s:edit_under_cursor() abort
@@ -838,7 +908,9 @@ function! s:rsvp_complete(arg, line, pos) abort
         \ 'v:val =~ "^" . a:arg')
 endfunction
 
-command! -nargs=* RoxcalAgenda call <SID>open_agenda(<f-args>)
-command! -nargs=? RoxcalAdd    call <SID>open_add(<f-args>)
-command! RoxcalReload          call <SID>reload()
+command! -nargs=* RoxcalAgenda    call <SID>open_agenda(<f-args>)
+command! -nargs=* RoxcalSearch    call <SID>open_search(<f-args>)
+command! -nargs=* RoxcalConflicts call <SID>open_conflicts(<f-args>)
+command! -nargs=? RoxcalAdd       call <SID>open_add(<f-args>)
+command! RoxcalReload             call <SID>reload()
 command! -nargs=1 -complete=customlist,<SID>rsvp_complete RoxcalReply call <SID>rsvp_in_buffer(<q-args>)

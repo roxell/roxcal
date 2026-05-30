@@ -441,6 +441,8 @@ The `g:roxcal_command` setting may be a string (one binary) or a list
 | Command | Purpose |
 |---|---|
 | `:RoxcalAgenda [args]` | Open a scratch buffer with events. No args → `agenda --all --json`. Extra args pass through to `roxcal agenda`. |
+| `:RoxcalSearch [query]` | Search across all accounts. Without a query, prompts with `Search: `. Same buffer mappings as the agenda. |
+| `:RoxcalConflicts [args]` | Show overlapping events grouped by cluster. No args → `conflicts --all`. Buffer mappings work on event lines; cluster headers are no-ops. |
 | `:RoxcalAdd [account]` | Open a buffer to compose a new event. See [Creating an event](#creating-an-event-from-vim) below. |
 | `:RoxcalReload` | Reload the current roxcal buffer. |
 
