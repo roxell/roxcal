@@ -207,6 +207,57 @@ def test_print_events_show_id_includes_id(capsys):
     assert "abc123" in capsys.readouterr().out
 
 
+def test_annotate_past_marks_ended_events():
+    from roxcal.events import annotate_past
+
+    now = datetime(2026, 6, 1, 12, 0).astimezone()
+    items = [
+        {"start": "2026-05-30T10:00:00+02:00", "end": "2026-05-30T11:00:00+02:00"},
+        {"start": "2026-06-02T10:00:00+02:00", "end": "2026-06-02T11:00:00+02:00"},
+        {"start": "2026-06-01T10:00:00+02:00", "end": "2026-06-01T14:00:00+02:00"},
+    ]
+    annotate_past(items, now=now)
+    assert items[0]["is_past"] is True
+    assert items[1]["is_past"] is False
+    # Ongoing event (started before now, ends after now): not past.
+    assert items[2]["is_past"] is False
+
+
+def test_print_events_dims_past_with_color(capsys):
+    items = [
+        {
+            "id": "p",
+            "title": "Past",
+            "start": "2024-01-01T10:00:00+02:00",
+            "end": "2024-01-01T11:00:00+02:00",
+            "account": "a",
+            "response": "accepted",
+            "is_past": True,
+        }
+    ]
+    print_events(items, color="always")
+    out = capsys.readouterr().out
+    assert "\033[90m" in out
+    assert "\033[32m" not in out
+
+
+def test_print_events_past_color_overridable(capsys):
+    items = [
+        {
+            "id": "p",
+            "title": "Past",
+            "start": "2024-01-01T10:00:00+02:00",
+            "end": "2024-01-01T11:00:00+02:00",
+            "account": "a",
+            "response": "accepted",
+            "is_past": True,
+        }
+    ]
+    print_events(items, color="always", colors={"past": "\033[35m"})
+    out = capsys.readouterr().out
+    assert "\033[35m" in out
+
+
 def test_print_events_color_uses_custom_palette(capsys):
     items = [
         {

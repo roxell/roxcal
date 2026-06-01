@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta
 from .backends import make_backend
 from .config import Account, Config, die, load_config
 from .events import (
+    annotate_past,
     fmt_event_time,
     is_all_day,
     parse_duration,
@@ -121,6 +122,9 @@ def cmd_list(args, cfg: Config) -> None:
 def cmd_agenda(args, cfg: Config) -> None:
     start, end = _resolve_window(args)
     items = _collect_events(args, cfg, start, end)
+    annotate_past(items)
+    if args.hide_past:
+        items = [e for e in items if not e.get("is_past")]
     if args.json:
         print(json.dumps(items, default=str))
         return
@@ -270,6 +274,7 @@ def cmd_search(args, cfg: Config) -> None:
         else datetime.now().astimezone() + timedelta(days=args.days)
     )
     items = _collect_events(args, cfg, start, end, query=args.query)
+    annotate_past(items)
     if not args.full:
         # Google's server-side q= also matches description and attendees,
         # which surfaces surprising hits. Narrow to title + location so
@@ -411,8 +416,10 @@ def _resolve_window(args) -> tuple[datetime, datetime]:
 def cmd_conflicts(args, cfg: Config) -> None:
     start, end = _resolve_window(args)
 
+    all_events = _collect_events(args, cfg, start, end)
+    annotate_past(all_events)
     candidates: list[dict] = []
-    for ev in _collect_events(args, cfg, start, end):
+    for ev in all_events:
         if ev.get("response") == "declined":
             continue
         if args.skip_all_day and is_all_day(ev):
@@ -535,6 +542,7 @@ def cmd_calw(args, cfg: Config) -> None:
     start_dt = datetime.combine(start, datetime.min.time()).astimezone()
     end_dt = datetime.combine(end, datetime.min.time()).astimezone()
     items = _collect_events(args, cfg, start_dt, end_dt)
+    annotate_past(items)
     if args.vertical:
         print_week_grid_vertical(items, start, color=cfg.color, colors=cfg.colors)
     else:
@@ -596,6 +604,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Drop the [account] and [calendar] columns. Use 'show' or the "
         "vim plugin's gd/<CR> expand to see them for a specific event.",
+    )
+    sp.add_argument(
+        "--hide-past",
+        action="store_true",
+        help="Drop events that have already ended. Past events are dimmed "
+        "in the output by default; this skips them entirely.",
     )
     sp.add_argument(
         "--json",

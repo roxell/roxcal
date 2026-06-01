@@ -26,11 +26,12 @@ syntax match roxcalUrl           /https\?:\/\/\S\+/ containedin=ALL
 "
 "   highlight roxcalAccepted ctermfg=Green guifg=#88c070
 "
-highlight default roxcalAccepted  ctermfg=Green   guifg=#88c070
-highlight default roxcalDeclined  ctermfg=Red     guifg=#e07070
-highlight default roxcalTentative ctermfg=Yellow  guifg=#d8c068
-highlight default roxcalPending   ctermfg=Cyan    guifg=#80c0e0
-highlight default roxcalOrganizer ctermfg=Magenta guifg=#c890e0
+highlight default roxcalAccepted  ctermfg=Green    guifg=#88c070
+highlight default roxcalDeclined  ctermfg=Red      guifg=#e07070
+highlight default roxcalTentative ctermfg=Yellow   guifg=#d8c068
+highlight default roxcalPending   ctermfg=Cyan     guifg=#80c0e0
+highlight default roxcalOrganizer ctermfg=Magenta  guifg=#c890e0
+highlight default roxcalPast      ctermfg=DarkGrey guifg=#808080
 
 highlight default link roxcalExpandLabel   Label
 highlight default link roxcalDescriptionLn Comment

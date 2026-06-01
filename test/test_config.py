@@ -217,6 +217,23 @@ backend = "google_oauth"
     assert config.colors["tentative"] == "\033[33m"
     assert config.colors["needsAction"] == "\033[36m"
     assert config.colors["organizer"] == "\033[35m"
+    assert config.colors["past"] == "\033[90m"
+
+
+def test_colors_past_override(tmp_path, monkeypatch):
+    cdir = _redirect_config(monkeypatch, tmp_path)
+    cdir.mkdir()
+    (cdir / "config.toml").write_text("""
+default_account = "x"
+
+[accounts.x]
+backend = "google_oauth"
+
+[colors]
+past = "#888888"
+""")
+    config = load_config()
+    assert config.colors["past"] == "\033[38;2;136;136;136m"
 
 
 def test_colors_named_override(tmp_path, monkeypatch):

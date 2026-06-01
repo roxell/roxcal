@@ -66,6 +66,16 @@ def test_agenda_compact_flag():
     assert args.compact is True
 
 
+def test_agenda_hide_past_default_false():
+    args = _parser().parse_args(["agenda"])
+    assert args.hide_past is False
+
+
+def test_agenda_hide_past_flag():
+    args = _parser().parse_args(["agenda", "--hide-past"])
+    assert args.hide_past is True
+
+
 def test_add_requires_title_and_when():
     parser = _parser()
     with pytest.raises(SystemExit):

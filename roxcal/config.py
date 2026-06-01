@@ -38,6 +38,7 @@ DEFAULT_COLORS = {
     "tentative": "\033[33m",
     "needsAction": "\033[36m",
     "organizer": "\033[35m",
+    "past": "\033[90m",
 }
 
 # TOML keys use snake_case but the events use the camelCase response strings
@@ -48,6 +49,7 @@ _COLOR_TOML_KEYS = {
     "tentative": "tentative",
     "needs_action": "needsAction",
     "organizer": "organizer",
+    "past": "past",
 }
 
 

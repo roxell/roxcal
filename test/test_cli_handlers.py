@@ -174,6 +174,7 @@ def _agenda_args(**overrides):
         all_calendars=False,
         ids=False,
         compact=False,
+        hide_past=False,
         json=False,
     )
     base.update(overrides)
@@ -280,6 +281,53 @@ def test_cmd_agenda_config_color_never_has_no_ansi(capsys):
         cmd_agenda(_agenda_args(), cfg)
     out = capsys.readouterr().out
     assert "\033[" not in out
+
+
+def _past_and_future_iso():
+    """Return (past_start, past_end, future_start, future_end) ISO strings
+    around now, each event spanning one hour."""
+    now = datetime.now().astimezone()
+    past_start = now - timedelta(days=2)
+    future_start = now + timedelta(days=2)
+    return (
+        past_start.isoformat(),
+        (past_start + timedelta(hours=1)).isoformat(),
+        future_start.isoformat(),
+        (future_start + timedelta(hours=1)).isoformat(),
+    )
+
+
+def test_cmd_agenda_hide_past_drops_ended_events(capsys):
+    ps, pe, fs, fe = _past_and_future_iso()
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {"start": ps, "end": pe, "title": "Yesterday", "id": "p", "account": "a"},
+            {"start": fs, "end": fe, "title": "Tomorrow", "id": "f", "account": "a"},
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_agenda(_agenda_args(hide_past=True), _cfg())
+    out = capsys.readouterr().out
+    assert "Yesterday" not in out
+    assert "Tomorrow" in out
+
+
+def test_cmd_agenda_marks_past_in_json(capsys):
+    ps, pe, fs, fe = _past_and_future_iso()
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {"start": ps, "end": pe, "title": "Past", "id": "p", "account": "a"},
+            {"start": fs, "end": fe, "title": "Future", "id": "f", "account": "a"},
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_agenda(_agenda_args(json=True), _cfg())
+    data = _json.loads(capsys.readouterr().out)
+    by_title = {e["title"]: e for e in data}
+    assert by_title["Past"]["is_past"] is True
+    assert by_title["Future"]["is_past"] is False
 
 
 def test_cmd_agenda_compact_drops_account_and_calendar(capsys):

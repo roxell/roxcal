@@ -98,6 +98,21 @@ def parse_event_dt(iso: str) -> datetime | None:
         return None
 
 
+def annotate_past(items: list[dict], now: datetime | None = None) -> None:
+    """Set ev['is_past'] = True on events whose end has already passed."""
+    cutoff = now if now is not None else datetime.now().astimezone()
+    for ev in items:
+        end = parse_event_dt(ev.get("end", ""))
+        ev["is_past"] = end is not None and end < cutoff
+
+
+def _event_color(ev: dict, palette: dict[str, str]) -> str:
+    """Pick the ANSI escape for an event: past wins over response state."""
+    if ev.get("is_past"):
+        return palette.get("past", "")
+    return palette.get(ev.get("response", ""), "")
+
+
 def fmt_event_time(iso: str) -> str:
     """Render an ISO time stamp short. Falls back to the raw string for all-day."""
     dt = parse_event_dt(iso)
@@ -289,7 +304,7 @@ def print_week_grid(
                 else:
                     cell = content.ljust(width)
                 if use_color:
-                    c = palette.get(ev.get("response", ""))
+                    c = _event_color(ev, palette)
                     if c:
                         cell = f"{c}{cell}{ANSI_RESET}"
             else:
@@ -347,11 +362,12 @@ def print_week_grid_vertical(
             except ValueError:
                 time_s = "all "
             title_s = ev.get("title", "")
+            line = f"    {time_s}  {title_s}"
             if use_color:
-                c = palette.get(ev.get("response", ""))
+                c = _event_color(ev, palette)
                 if c:
-                    title_s = f"{c}{title_s}{ANSI_RESET}"
-            print(f"    {time_s}  {title_s}")
+                    line = f"{c}{line}{ANSI_RESET}"
+            print(line)
 
 
 def print_events(
@@ -388,16 +404,20 @@ def print_events(
         location = f"  @ {e['location']}" if e.get("location") else ""
         acct = e.get("account", "?")
         cal = e.get("calendar_name") or e.get("calendar") or ""
-        response = e.get("response", "")
-        rsym = RESPONSE_SYMBOL.get(response, " ")
+        rsym = RESPONSE_SYMBOL.get(e.get("response", ""), " ")
         idpart = f"  [{e['id']}]" if show_id else ""
         sym = f"[{rsym}]"
-        if use_color and response in palette:
-            c = palette[response]
+        c = _event_color(e, palette) if use_color else ""
+        # Past events: dim the whole line. Active events: color the response
+        # bracket + title so the rest of the line keeps the terminal default.
+        if c and not e.get("is_past"):
             sym = f"{c}{sym}{ANSI_RESET}"
             title = f"{c}{title}{ANSI_RESET}"
         if compact:
             mid = sym
         else:
             mid = f"{sym}  [{acct:<{acct_w}}]  [{cal:<{cal_w}}]"
-        print(f"  {start:<16}  {mid}  {title}{location}{idpart}")
+        line = f"  {start:<16}  {mid}  {title}{location}{idpart}"
+        if c and e.get("is_past"):
+            line = f"{c}{line}{ANSI_RESET}"
+        print(line)

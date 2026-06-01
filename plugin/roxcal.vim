@@ -51,6 +51,7 @@ let s:color_groups = {
     \ 'tentative': 'roxcalTentative',
     \ 'needs_action': 'roxcalPending',
     \ 'organizer': 'roxcalOrganizer',
+    \ 'past': 'roxcalPast',
     \ }
 
 " Translate one user-supplied color value (int / hex / name) into a vim
@@ -176,6 +177,7 @@ function! s:render(events, clusters) abort
     endif
     let b:roxcal_line_to_idx = {}
     let b:roxcal_separator_lines = {}
+    let past_lines = []
     let lines = []
     let line_no = 1
     let idx = 0
@@ -190,6 +192,9 @@ function! s:render(events, clusters) abort
             for ev in cluster.events
                 call add(lines, s:fmt_event(ev, b:roxcal_compact))
                 let b:roxcal_line_to_idx[line_no] = idx
+                if get(ev, 'is_past', 0)
+                    call add(past_lines, line_no)
+                endif
                 let line_no += 1
                 let idx += 1
             endfor
@@ -198,6 +203,9 @@ function! s:render(events, clusters) abort
         for ev in a:events
             call add(lines, s:fmt_event(ev, b:roxcal_compact))
             let b:roxcal_line_to_idx[line_no] = idx
+            if get(ev, 'is_past', 0)
+                call add(past_lines, line_no)
+            endif
             let line_no += 1
             let idx += 1
         endfor
@@ -206,6 +214,17 @@ function! s:render(events, clusters) abort
         let lines = [is_clusters ? '  (no conflicts)' : '  (no events)']
     endif
     call setline(1, lines)
+    " matchaddpos takes at most 8 positions per call; batch so all past
+    " lines get dimmed, not just the first eight.
+    for mid in get(b:, 'roxcal_past_matches', [])
+        silent! call matchdelete(mid)
+    endfor
+    let b:roxcal_past_matches = []
+    let i = 0
+    while i < len(past_lines)
+        call add(b:roxcal_past_matches, matchaddpos('roxcalPast', past_lines[i:i + 7]))
+        let i += 8
+    endwhile
     setlocal nomodifiable nomodified
     call cursor(1, 1)
 endfunction
