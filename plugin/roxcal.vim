@@ -164,6 +164,102 @@ function! s:flatten_clusters(clusters) abort
     return out
 endfunction
 
+function! s:build_lines(events, clusters, compact) abort
+    " fold_ranges are [start, end, open_by_default] triples; the inner
+    " folds must come before the outer wrapper so Vim nests them cleanly.
+    let lines = []
+    let line_to_idx = {}
+    let separator_lines = {}
+    let past_lines = []
+    let fold_ranges = []
+    let day_groups = []
+    let line_no = 1
+    let idx = 0
+    let is_clusters = type(a:clusters) == v:t_list
+    if is_clusters
+        for cluster in a:clusters
+            let ovs = s:fmt_iso_local(get(cluster, 'overlap_start', ''))
+            let ove = strpart(s:fmt_iso_local(get(cluster, 'overlap_end', '')), 11, 5)
+            call add(lines, printf('Overlap %s -> %s:', ovs, ove))
+            let separator_lines[line_no] = 1
+            let group_start = line_no
+            let line_no += 1
+            for ev in cluster.events
+                call add(lines, s:fmt_event(ev, a:compact))
+                let line_to_idx[line_no] = idx
+                if get(ev, 'is_past', 0)
+                    call add(past_lines, line_no)
+                endif
+                let line_no += 1
+                let idx += 1
+            endfor
+            if line_no - 1 > group_start
+                call add(fold_ranges, [group_start, line_no - 1, 1])
+            endif
+        endfor
+    else
+        let last_date = ''
+        let group_start = 0
+        let group_all_past = 1
+        for ev in a:events
+            let dt = strpart(get(ev, 'start', ''), 0, 10)
+            if dt !=# '' && dt !=# last_date
+                if group_start > 0 && line_no - 1 > group_start
+                    call add(day_groups, [group_start, line_no - 1, group_all_past])
+                endif
+                call add(lines, dt . ' ' . repeat('=', 60))
+                let separator_lines[line_no] = 1
+                let group_start = line_no
+                let group_all_past = 1
+                let line_no += 1
+                let last_date = dt
+            endif
+            call add(lines, s:fmt_event(ev, a:compact))
+            let line_to_idx[line_no] = idx
+            if get(ev, 'is_past', 0)
+                call add(past_lines, line_no)
+            else
+                let group_all_past = 0
+            endif
+            let line_no += 1
+            let idx += 1
+        endfor
+        if group_start > 0 && line_no - 1 > group_start
+            call add(day_groups, [group_start, line_no - 1, group_all_past])
+        endif
+        " Inner past day folds first, then the outer wrapper, then future
+        " day folds. Vim needs the inner folds to exist before the outer so
+        " they nest cleanly.
+        let past_start = -1
+        let past_end = -1
+        for [s, e, all_past] in day_groups
+            if all_past
+                call add(fold_ranges, [s, e, 0])
+                if past_start < 0
+                    let past_start = s
+                endif
+                let past_end = e
+            endif
+        endfor
+        if past_start > 0
+            call add(fold_ranges, [past_start, past_end, 0])
+        endif
+        for [s, e, all_past] in day_groups
+            if !all_past
+                call add(fold_ranges, [s, e, 1])
+            endif
+        endfor
+    endif
+    if empty(lines)
+        call add(lines, is_clusters ? '  (no conflicts)' : '  (no events)')
+    endif
+    return {'lines': lines, 'line_to_idx': line_to_idx, 'separator_lines': separator_lines, 'past_lines': past_lines, 'fold_ranges': fold_ranges}
+endfunction
+
+function! RoxcalBuildLines(events, clusters, compact) abort
+    return s:build_lines(a:events, a:clusters, a:compact)
+endfunction
+
 function! s:render(events, clusters) abort
     " a:clusters is v:null for plain agenda/search; a list of
     " {overlap_start, overlap_end, events} for conflicts.
@@ -175,45 +271,10 @@ function! s:render(events, clusters) abort
     if !exists('b:roxcal_compact')
         let b:roxcal_compact = get(g:, 'roxcal_compact', 0)
     endif
-    let b:roxcal_line_to_idx = {}
-    let b:roxcal_separator_lines = {}
-    let past_lines = []
-    let lines = []
-    let line_no = 1
-    let idx = 0
-    let is_clusters = type(a:clusters) == v:t_list
-    if is_clusters
-        for cluster in a:clusters
-            let ovs = s:fmt_iso_local(get(cluster, 'overlap_start', ''))
-            let ove = strpart(s:fmt_iso_local(get(cluster, 'overlap_end', '')), 11, 5)
-            call add(lines, printf('Overlap %s -> %s:', ovs, ove))
-            let b:roxcal_separator_lines[line_no] = 1
-            let line_no += 1
-            for ev in cluster.events
-                call add(lines, s:fmt_event(ev, b:roxcal_compact))
-                let b:roxcal_line_to_idx[line_no] = idx
-                if get(ev, 'is_past', 0)
-                    call add(past_lines, line_no)
-                endif
-                let line_no += 1
-                let idx += 1
-            endfor
-        endfor
-    else
-        for ev in a:events
-            call add(lines, s:fmt_event(ev, b:roxcal_compact))
-            let b:roxcal_line_to_idx[line_no] = idx
-            if get(ev, 'is_past', 0)
-                call add(past_lines, line_no)
-            endif
-            let line_no += 1
-            let idx += 1
-        endfor
-    endif
-    if empty(lines)
-        let lines = [is_clusters ? '  (no conflicts)' : '  (no events)']
-    endif
-    call setline(1, lines)
+    let r = s:build_lines(a:events, a:clusters, b:roxcal_compact)
+    let b:roxcal_line_to_idx = r.line_to_idx
+    let b:roxcal_separator_lines = r.separator_lines
+    call setline(1, r.lines)
     " matchaddpos takes at most 8 positions per call; batch so all past
     " lines get dimmed, not just the first eight.
     for mid in get(b:, 'roxcal_past_matches', [])
@@ -221,10 +282,18 @@ function! s:render(events, clusters) abort
     endfor
     let b:roxcal_past_matches = []
     let i = 0
-    while i < len(past_lines)
-        call add(b:roxcal_past_matches, matchaddpos('roxcalPast', past_lines[i:i + 7]))
+    while i < len(r.past_lines)
+        call add(b:roxcal_past_matches, matchaddpos('roxcalPast', r.past_lines[i:i + 7]))
         let i += 8
     endwhile
+    setlocal foldmethod=manual
+    silent! normal! zE
+    for [s, e, open_default] in r.fold_ranges
+        execute s . ',' . e . 'fold'
+        if open_default
+            execute s . 'foldopen'
+        endif
+    endfor
     setlocal nomodifiable nomodified
     call cursor(1, 1)
 endfunction
@@ -529,6 +598,7 @@ function! s:show_agenda_help() abort
     echo  "  E           edit the event in a buffer (submit with :w)"
     echo  "  gd          show full detail in a split (E to edit, q to close)"
     echo  "  c           toggle compact (hide [account] / [calendar] columns)"
+    echo  "  za / zM / zR   toggle / close all / open all day folds"
     echo  "  r           reload from roxcal"
     echo  "  q           close this buffer"
     echo  "  ?           this help"

@@ -125,3 +125,158 @@ def test_color_args_hex():
 
 def test_color_args_empty_string():
     assert _color_args("") == ""
+
+
+def _build_lines(events, clusters=None, compact: bool = False) -> dict:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        ev_file = tmp_path / "events.json"
+        cl_file = tmp_path / "clusters.json"
+        out_file = tmp_path / "out.json"
+        script_file = tmp_path / "drive.vim"
+        ev_file.write_text(json.dumps(events))
+        if clusters is None:
+            clusters_expr = "v:null"
+        else:
+            cl_file.write_text(json.dumps(clusters))
+            clusters_expr = f"json_decode(join(readfile('{cl_file}'), \"\\n\"))"
+        compact_arg = "1" if compact else "0"
+        script = f"""
+            source {PLUGIN}
+            let s:events = json_decode(join(readfile('{ev_file}'), "\\n"))
+            let s:r = RoxcalBuildLines(s:events, {clusters_expr}, {compact_arg})
+            call writefile([json_encode(s:r)], '{out_file}')
+            qa!
+        """
+        script_file.write_text(script)
+        result = subprocess.run(
+            ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if not out_file.exists():
+            raise RuntimeError(
+                f"vim failed (rc={result.returncode}): "
+                f"stdout={result.stdout!r} stderr={result.stderr!r}"
+            )
+        return json.loads(out_file.read_text())
+
+
+def test_build_lines_inserts_day_separator():
+    events = [
+        {"start": "2026-05-26T09:00:00+02:00", "title": "A", "account": "x"},
+        {"start": "2026-05-27T09:00:00+02:00", "title": "B", "account": "x"},
+    ]
+    r = _build_lines(events)
+    sep_lines = [int(k) for k in r["separator_lines"].keys()]
+    assert len(sep_lines) == 2
+    # Each separator is the line above its events.
+    for line_no in sep_lines:
+        assert r["lines"][line_no - 1].startswith("2026-05-")
+        assert "===" in r["lines"][line_no - 1]
+
+
+def test_build_lines_groups_same_day():
+    events = [
+        {"start": "2026-05-26T09:00:00+02:00", "title": "A", "account": "x"},
+        {"start": "2026-05-26T14:00:00+02:00", "title": "B", "account": "x"},
+    ]
+    r = _build_lines(events)
+    assert len(r["separator_lines"]) == 1
+
+
+def test_build_lines_emits_fold_range_per_day():
+    events = [
+        {"start": "2026-05-26T09:00:00+02:00", "title": "A", "account": "x"},
+        {"start": "2026-05-26T14:00:00+02:00", "title": "B", "account": "x"},
+        {"start": "2026-05-27T09:00:00+02:00", "title": "C", "account": "x"},
+    ]
+    r = _build_lines(events)
+    # Two days with at least one event each -> two fold ranges, each
+    # open by default (no past events).
+    assert len(r["fold_ranges"]) == 2
+    for s, e, open_default in r["fold_ranges"]:
+        assert open_default == 1
+
+
+def test_build_lines_nests_past_days_in_outer_fold():
+    events = [
+        {
+            "start": "2024-01-01T09:00:00+02:00",
+            "title": "Past1",
+            "account": "x",
+            "is_past": 1,
+        },
+        {
+            "start": "2024-01-02T09:00:00+02:00",
+            "title": "Past2",
+            "account": "x",
+            "is_past": 1,
+        },
+        {
+            "start": "2026-12-01T09:00:00+02:00",
+            "title": "Future",
+            "account": "x",
+        },
+    ]
+    r = _build_lines(events)
+    # Three day groups -> 2 past inner folds + 1 outer wrapper + 1 future = 4.
+    assert len(r["fold_ranges"]) == 4
+    # Inner past folds and the outer wrapper are closed by default;
+    # the future day is open.
+    open_flags = [f[2] for f in r["fold_ranges"]]
+    assert open_flags == [0, 0, 0, 1]
+    # The outer wrapper spans both past days (third entry in fold_ranges).
+    outer = r["fold_ranges"][2]
+    assert outer[0] == r["fold_ranges"][0][0]
+    assert outer[1] == r["fold_ranges"][1][1]
+
+
+def test_build_lines_marks_past_lines():
+    events = [
+        {
+            "start": "2026-05-26T09:00:00+02:00",
+            "title": "Past",
+            "account": "x",
+            "is_past": 1,
+        },
+        {
+            "start": "2026-05-26T14:00:00+02:00",
+            "title": "Future",
+            "account": "x",
+        },
+    ]
+    r = _build_lines(events)
+    # The past line should be flagged; future not.
+    past_line = r["past_lines"][0]
+    assert "Past" in r["lines"][past_line - 1]
+    assert len(r["past_lines"]) == 1
+
+
+def test_build_lines_cluster_path():
+    clusters = [
+        {
+            "overlap_start": "2026-05-26T10:30:00+02:00",
+            "overlap_end": "2026-05-26T11:00:00+02:00",
+            "events": [
+                {
+                    "start": "2026-05-26T10:00:00+02:00",
+                    "title": "A",
+                    "account": "x",
+                },
+                {
+                    "start": "2026-05-26T10:30:00+02:00",
+                    "title": "B",
+                    "account": "x",
+                },
+            ],
+        }
+    ]
+    # events list for the flat fallback is just the flattened cluster events.
+    flat = [e for c in clusters for e in c["events"]]
+    r = _build_lines(flat, clusters=clusters)
+    assert any("Overlap" in line for line in r["lines"])
+    assert len(r["fold_ranges"]) == 1
+    # Cluster folds are open by default.
+    assert r["fold_ranges"][0][2] == 1
