@@ -13,6 +13,7 @@ import pytest
 from roxcal import cli as cli_mod
 from roxcal.cli import (
     _collect_events,
+    _dedupe_by_ical_uid,
     _resolve_month,
     _split_calendars,
     cmd_add,
@@ -116,6 +117,93 @@ def test_collect_events_all_iterates_all_accounts(capsys):
     assert sorted(e["title"] for e in items) == ["a", "b"]
 
 
+def test_dedupe_by_ical_uid_keeps_first():
+    items = [
+        {"ical_uid": "u1", "title": "A", "account": "a"},
+        {"ical_uid": "u1", "title": "A", "account": "b"},
+        {"ical_uid": "u2", "title": "B", "account": "a"},
+    ]
+    out = _dedupe_by_ical_uid(items)
+    assert [(e["title"], e["account"]) for e in out] == [("A", "a"), ("B", "a")]
+
+
+def test_dedupe_by_ical_uid_keeps_events_without_uid():
+    items = [
+        {"ical_uid": "", "title": "A", "account": "a"},
+        {"ical_uid": "", "title": "B", "account": "b"},
+    ]
+    out = _dedupe_by_ical_uid(items)
+    assert len(out) == 2
+
+
+def test_collect_events_all_dedupes_by_ical_uid():
+    cfg = _two_account_cfg()
+    args = Namespace(
+        account=None,
+        calendar=None,
+        all=True,
+        all_calendars=False,
+        no_dedupe=False,
+    )
+
+    def mk(account):
+        backend = MagicMock()
+        backend.list_events.return_value = iter(
+            [
+                {
+                    "start": "2026-05-21T10:00",
+                    "title": "Shared meeting",
+                    "ical_uid": "shared-uid",
+                    "account": account.name,
+                }
+            ]
+        )
+        return backend
+
+    with patch.object(cli_mod, "make_backend", side_effect=mk):
+        items = _collect_events(
+            args,
+            cfg,
+            datetime(2026, 5, 21).astimezone(),
+            datetime(2026, 5, 23).astimezone(),
+        )
+    assert len(items) == 1
+
+
+def test_collect_events_all_no_dedupe_keeps_duplicates():
+    cfg = _two_account_cfg()
+    args = Namespace(
+        account=None,
+        calendar=None,
+        all=True,
+        all_calendars=False,
+        no_dedupe=True,
+    )
+
+    def mk(account):
+        backend = MagicMock()
+        backend.list_events.return_value = iter(
+            [
+                {
+                    "start": "2026-05-21T10:00",
+                    "title": "Shared meeting",
+                    "ical_uid": "shared-uid",
+                    "account": account.name,
+                }
+            ]
+        )
+        return backend
+
+    with patch.object(cli_mod, "make_backend", side_effect=mk):
+        items = _collect_events(
+            args,
+            cfg,
+            datetime(2026, 5, 21).astimezone(),
+            datetime(2026, 5, 23).astimezone(),
+        )
+    assert len(items) == 2
+
+
 def test_collect_events_all_skips_unauth(capsys):
     cfg = _two_account_cfg()
     args = Namespace(account=None, calendar=None, all=True, all_calendars=False)
@@ -175,6 +263,7 @@ def _agenda_args(**overrides):
         ids=False,
         compact=False,
         hide_past=False,
+        no_dedupe=False,
         json=False,
     )
     base.update(overrides)
@@ -872,6 +961,7 @@ def _conflicts_args(**overrides):
         all=False,
         all_calendars=False,
         skip_all_day=False,
+        no_dedupe=False,
         json=False,
     )
     base.update(overrides)
@@ -1046,6 +1136,7 @@ def _search_args(**overrides):
         ids=False,
         compact=False,
         full=False,
+        no_dedupe=False,
         json=False,
     )
     base.update(overrides)

@@ -109,8 +109,13 @@ class CalDAVBackend(Backend):
                 location = (
                     str(vevent.location.value) if hasattr(vevent, "location") else ""
                 )
+                # CalDAV's event id IS the iCalendar UID, so id and
+                # ical_uid are the same string. Google and Graph expose
+                # them as separate fields.
+                uid = str(vevent.uid.value)
                 yield {
-                    "id": str(vevent.uid.value),
+                    "id": uid,
+                    "ical_uid": uid,
                     "title": title,
                     "start": start_iso,
                     "end": end_iso,

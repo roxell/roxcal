@@ -144,6 +144,7 @@ class MicrosoftGraphBackend(Backend):
                 raw_resp = ev.get("responseStatus", {}).get("response", "")
                 yield {
                     "id": ev["id"],
+                    "ical_uid": ev.get("iCalUId", ""),
                     "title": ev.get("subject", "(no subject)"),
                     "start": start_dt,
                     "end": ev["end"]["dateTime"],

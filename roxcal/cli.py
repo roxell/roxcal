@@ -106,7 +106,24 @@ def _collect_events(
                 raise
             print(f"  [{acc.name}] skipped (not logged in?)")
     items.sort(key=lambda e: e["start"])
+    if args.all and not getattr(args, "no_dedupe", False):
+        items = _dedupe_by_ical_uid(items)
     return items
+
+
+def _dedupe_by_ical_uid(items: list[dict]) -> list[dict]:
+    # Events without an iCalUID stay as-is — no way to tell them apart.
+
+    seen: set[str] = set()
+    out: list[dict] = []
+    for ev in items:
+        uid = ev.get("ical_uid") or ""
+        if uid and uid in seen:
+            continue
+        if uid:
+            seen.add(uid)
+        out.append(ev)
+    return out
 
 
 def cmd_init(args, cfg: Config) -> None:
@@ -612,6 +629,12 @@ def build_parser() -> argparse.ArgumentParser:
         "in the output by default; this skips them entirely.",
     )
     sp.add_argument(
+        "--no-dedupe",
+        action="store_true",
+        help="With --all, keep every copy of an event that appears on "
+        "multiple accounts. Default deduplicates by iCalUID.",
+    )
+    sp.add_argument(
         "--json",
         action="store_true",
         help="Emit raw JSON instead of formatted lines (for vim/fzf/scripts)",
@@ -855,6 +878,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--ids", action="store_true", help="Show event ids")
     sp.add_argument("--compact", action="store_true", help="Compact line format")
     sp.add_argument(
+        "--no-dedupe",
+        action="store_true",
+        help="With --all, keep duplicates of meetings shared across accounts.",
+    )
+    sp.add_argument(
         "--full",
         action="store_true",
         help="Also match description and attendees (Google only). Default "
@@ -901,6 +929,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-all-day",
         action="store_true",
         help="Do not flag all-day events as conflicting with timed events.",
+    )
+    sp.add_argument(
+        "--no-dedupe",
+        action="store_true",
+        help="With --all, keep duplicates of meetings shared across accounts.",
     )
     sp.add_argument(
         "--json",

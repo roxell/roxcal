@@ -76,6 +76,16 @@ def test_agenda_hide_past_flag():
     assert args.hide_past is True
 
 
+def test_agenda_no_dedupe_default_false():
+    args = _parser().parse_args(["agenda"])
+    assert args.no_dedupe is False
+
+
+def test_agenda_no_dedupe_flag():
+    args = _parser().parse_args(["agenda", "--no-dedupe"])
+    assert args.no_dedupe is True
+
+
 def test_add_requires_title_and_when():
     parser = _parser()
     with pytest.raises(SystemExit):

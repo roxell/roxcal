@@ -141,6 +141,7 @@ class GoogleOAuthBackend(Backend):
                     response = "organizer"
                 yield {
                     "id": ev["id"],
+                    "ical_uid": ev.get("iCalUID", ""),
                     "title": ev.get("summary", "(no title)"),
                     "start": ev["start"].get("dateTime") or ev["start"].get("date"),
                     "end": ev["end"].get("dateTime") or ev["end"].get("date"),
