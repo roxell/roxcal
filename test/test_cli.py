@@ -76,6 +76,16 @@ def test_agenda_hide_past_flag():
     assert args.hide_past is True
 
 
+def test_agenda_hide_all_day_default_false():
+    args = _parser().parse_args(["agenda"])
+    assert args.hide_all_day is False
+
+
+def test_agenda_hide_all_day_flag():
+    args = _parser().parse_args(["agenda", "--hide-all-day"])
+    assert args.hide_all_day is True
+
+
 def test_agenda_no_dedupe_default_false():
     args = _parser().parse_args(["agenda"])
     assert args.no_dedupe is False

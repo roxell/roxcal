@@ -22,6 +22,7 @@
 "   D      delete event (asks first)
 "   gd     show full detail in a horizontal split
 "   c      toggle compact ([account] / [calendar] columns)
+"   A      toggle hiding all-day events
 "   r      reload
 "   q      close
 "   ?      this help
@@ -154,6 +155,11 @@ function! RoxcalFmtEvent(ev, compact) abort
     return s:fmt_event(a:ev, a:compact)
 endfunction
 
+function! s:has_time(ev) abort
+    " Mirror of events.is_all_day: an event without 'T' in start is all-day.
+    return stridx(get(a:ev, 'start', 'T'), 'T') >= 0
+endfunction
+
 function! s:flatten_clusters(clusters) abort
     let out = []
     for c in a:clusters
@@ -271,7 +277,14 @@ function! s:render(events, clusters) abort
     if !exists('b:roxcal_compact')
         let b:roxcal_compact = get(g:, 'roxcal_compact', 0)
     endif
-    let r = s:build_lines(a:events, a:clusters, b:roxcal_compact)
+    if !exists('b:roxcal_hide_all_day')
+        let b:roxcal_hide_all_day = get(g:, 'roxcal_hide_all_day', 0)
+    endif
+    let events = a:events
+    if b:roxcal_hide_all_day && type(a:clusters) != v:t_list
+        let events = filter(copy(a:events), 's:has_time(v:val)')
+    endif
+    let r = s:build_lines(events, a:clusters, b:roxcal_compact)
     let b:roxcal_line_to_idx = r.line_to_idx
     let b:roxcal_separator_lines = r.separator_lines
     call setline(1, r.lines)
@@ -305,6 +318,15 @@ function! s:toggle_compact() abort
     let b:roxcal_compact = !get(b:, 'roxcal_compact', 0)
     call s:render(b:roxcal_events, get(b:, 'roxcal_clusters', v:null))
     echom b:roxcal_compact ? 'roxcal: compact on' : 'roxcal: compact off'
+endfunction
+
+function! s:toggle_all_day() abort
+    if !exists('b:roxcal_events')
+        return
+    endif
+    let b:roxcal_hide_all_day = !get(b:, 'roxcal_hide_all_day', 0)
+    call s:render(b:roxcal_events, get(b:, 'roxcal_clusters', v:null))
+    echom b:roxcal_hide_all_day ? 'roxcal: all-day hidden' : 'roxcal: all-day shown'
 endfunction
 
 " Walk up to the nearest event header line; return the index into
@@ -598,6 +620,7 @@ function! s:show_agenda_help() abort
     echo  "  E           edit the event in a buffer (submit with :w)"
     echo  "  gd          show full detail in a split (E to edit, q to close)"
     echo  "  c           toggle compact (hide [account] / [calendar] columns)"
+    echo  "  A           toggle hiding all-day events"
     echo  "  za / zM / zR   toggle / close all / open all day folds"
     echo  "  r           reload from roxcal"
     echo  "  q           close this buffer"
@@ -632,6 +655,7 @@ function! s:apply_event_mappings() abort
     nnoremap <buffer> <silent> r    :call <SID>reload()<CR>
     nnoremap <buffer> <silent> q    :bd<CR>
     nnoremap <buffer> <silent> c    :call <SID>toggle_compact()<CR>
+    nnoremap <buffer> <silent> A    :call <SID>toggle_all_day()<CR>
     nnoremap <buffer> <silent> D    :call <SID>delete_event()<CR>
     nnoremap <buffer> <silent> E    :call <SID>edit_under_cursor()<CR>
     nnoremap <buffer> <silent> ?    :call <SID>show_agenda_help()<CR>

@@ -470,6 +470,7 @@ Inside the `roxcal://agenda` buffer:
 | `E`    | Edit the event in a pre-filled buffer. Submit with `:w` or `<leader>cc`. |
 | `gd`   | Show full detail in a horizontal split (`q` to close, `E` to switch to edit). |
 | `c`    | Toggle compact (hide `[account]` and `[calendar]` columns). Set `g:roxcal_compact = 1` for default-on. |
+| `A`    | Toggle hiding all-day events (birthdays, OOO, holidays). Set `g:roxcal_hide_all_day = 1` for default-on. |
 | `za` / `zM` / `zR` | Toggle / close all / open all day folds. Each day in the agenda is one fold; each cluster in `:RoxcalConflicts` is one fold. Open by default. |
 | `r`    | Reload the buffer from roxcal. |
 | `q`    | Close the buffer. |

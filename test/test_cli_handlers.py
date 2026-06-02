@@ -263,6 +263,7 @@ def _agenda_args(**overrides):
         ids=False,
         compact=False,
         hide_past=False,
+        hide_all_day=False,
         no_dedupe=False,
         json=False,
     )
@@ -400,6 +401,28 @@ def test_cmd_agenda_hide_past_drops_ended_events(capsys):
     out = capsys.readouterr().out
     assert "Yesterday" not in out
     assert "Tomorrow" in out
+
+
+def test_cmd_agenda_hide_all_day_drops_them(capsys):
+    ps, pe, fs, fe = _past_and_future_iso()
+    backend = MagicMock()
+    backend.list_events.return_value = iter(
+        [
+            {
+                "start": "2026-06-02",
+                "end": "2026-06-03",
+                "title": "Birthday",
+                "id": "b",
+                "account": "a",
+            },
+            {"start": fs, "end": fe, "title": "Standup", "id": "s", "account": "a"},
+        ]
+    )
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        cmd_agenda(_agenda_args(hide_all_day=True), _cfg())
+    out = capsys.readouterr().out
+    assert "Birthday" not in out
+    assert "Standup" in out
 
 
 def test_cmd_agenda_marks_past_in_json(capsys):

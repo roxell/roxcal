@@ -142,6 +142,8 @@ def cmd_agenda(args, cfg: Config) -> None:
     annotate_past(items)
     if args.hide_past:
         items = [e for e in items if not e.get("is_past")]
+    if args.hide_all_day:
+        items = [e for e in items if not is_all_day(e)]
     if args.json:
         print(json.dumps(items, default=str))
         return
@@ -627,6 +629,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Drop events that have already ended. Past events are dimmed "
         "in the output by default; this skips them entirely.",
+    )
+    sp.add_argument(
+        "--hide-all-day",
+        action="store_true",
+        help="Drop all-day events (birthdays, OOO, holidays).",
     )
     sp.add_argument(
         "--no-dedupe",
