@@ -11,6 +11,28 @@ from ..config import CONFIG_FILE, die
 from . import Backend
 
 
+def _to_vevent(ev):
+    # caldav 2.x dropped vobject; parse ev.data with icalendar instead.
+    from icalendar import Calendar as ICalendar
+
+    ical = ICalendar.from_ical(ev.data)
+    for comp in ical.walk("VEVENT"):
+        return comp
+    return None
+
+
+def _iso_or_str(field):
+    if field is None:
+        return ""
+    dt = field.dt
+    return dt.isoformat() if isinstance(dt, datetime) else str(dt)
+
+
+def _text(comp, key):
+    val = comp.get(key)
+    return str(val) if val is not None else ""
+
+
 class CalDAVBackend(Backend):
     def __init__(self, account):
         super().__init__(account)
@@ -97,22 +119,17 @@ class CalDAVBackend(Backend):
             cal_name = cal.name or cal_id.rstrip("/").rsplit("/", 1)[-1]
             events = cal.date_search(start=start, end=end, expand=True)
             for ev in events:
-                vevent = ev.vobject_instance.vevent
-                dt = vevent.dtstart.value
-                start_iso = dt.isoformat() if isinstance(dt, datetime) else str(dt)
-                title = (
-                    str(vevent.summary.value)
-                    if hasattr(vevent, "summary")
-                    else "(no title)"
-                )
-                end_iso = str(vevent.dtend.value) if hasattr(vevent, "dtend") else ""
-                location = (
-                    str(vevent.location.value) if hasattr(vevent, "location") else ""
-                )
+                vevent = _to_vevent(ev)
+                if vevent is None:
+                    continue
+                start_iso = _iso_or_str(vevent.get("DTSTART"))
+                title = _text(vevent, "SUMMARY") or "(no title)"
+                end_iso = _iso_or_str(vevent.get("DTEND"))
+                location = _text(vevent, "LOCATION")
                 # CalDAV's event id IS the iCalendar UID, so id and
                 # ical_uid are the same string. Google and Graph expose
                 # them as separate fields.
-                uid = str(vevent.uid.value)
+                uid = _text(vevent, "UID")
                 yield {
                     "id": uid,
                     "ical_uid": uid,
@@ -274,20 +291,15 @@ class CalDAVBackend(Backend):
                 continue
         if ev is None:
             die(f"event {event_id} not found via CalDAV on '{self.account.name}'")
-        vevent = ev.vobject_instance.vevent
-        dt = vevent.dtstart.value
-        start_iso = dt.isoformat() if isinstance(dt, datetime) else str(dt)
-        end_iso = str(vevent.dtend.value) if hasattr(vevent, "dtend") else ""
-        title = (
-            str(vevent.summary.value) if hasattr(vevent, "summary") else "(no title)"
-        )
-        location = str(vevent.location.value) if hasattr(vevent, "location") else ""
-        description = (
-            str(vevent.description.value) if hasattr(vevent, "description") else ""
-        )
-        organizer = ""
-        if hasattr(vevent, "organizer"):
-            organizer = str(vevent.organizer.value).removeprefix("mailto:")
+        vevent = _to_vevent(ev)
+        if vevent is None:
+            die(f"event {event_id} has no VEVENT in its iCalendar data")
+        start_iso = _iso_or_str(vevent.get("DTSTART"))
+        end_iso = _iso_or_str(vevent.get("DTEND"))
+        title = _text(vevent, "SUMMARY") or "(no title)"
+        location = _text(vevent, "LOCATION")
+        description = _text(vevent, "DESCRIPTION")
+        organizer = _text(vevent, "ORGANIZER").removeprefix("mailto:")
         partstat_map = {
             "ACCEPTED": "accepted",
             "DECLINED": "declined",
@@ -295,12 +307,13 @@ class CalDAVBackend(Backend):
             "NEEDS-ACTION": "needsAction",
         }
         me = self.account.email.lower()
+        raw_attendees = vevent.get("ATTENDEE", [])
+        if not isinstance(raw_attendees, list):
+            raw_attendees = [raw_attendees]
         attendees = []
-        for entry in vevent.contents.get("attendee", []):
-            addr = str(entry.value).removeprefix("mailto:")
-            partstat = entry.params.get("PARTSTAT", [""])
-            if isinstance(partstat, list):
-                partstat = partstat[0] if partstat else ""
+        for entry in raw_attendees:
+            addr = str(entry).removeprefix("mailto:")
+            partstat = entry.params.get("PARTSTAT", "")
             attendees.append(
                 {
                     "email": addr,
@@ -310,14 +323,15 @@ class CalDAVBackend(Backend):
                 }
             )
         reminder_min: int | None = None
-        for sub in getattr(vevent, "contents", {}).get("valarm", []):
-            try:
-                trigger = sub.trigger.value
-                if isinstance(trigger, timedelta):
-                    reminder_min = -int(trigger.total_seconds() // 60)
-                    break
-            except AttributeError:
+        for sub in vevent.subcomponents:
+            if sub.name != "VALARM":
                 continue
+            trigger = sub.get("TRIGGER")
+            if trigger is None:
+                continue
+            if isinstance(trigger.dt, timedelta):
+                reminder_min = -int(trigger.dt.total_seconds() // 60)
+                break
         return {
             "id": event_id,
             "title": title,
