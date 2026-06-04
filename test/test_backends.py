@@ -8,6 +8,7 @@ from roxcal.backends import Backend, make_backend
 from roxcal.backends.google_caldav import GoogleCalDAVBackend
 from roxcal.backends.google_oauth import GoogleOAuthBackend
 from roxcal.backends.microsoft_graph import MicrosoftGraphBackend
+from roxcal.backends.nextcloud_caldav import NextcloudCalDAVBackend
 from roxcal.config import Account
 
 
@@ -55,6 +56,65 @@ def test_base_class_methods_raise_not_implemented():
         b.delete_event("evt")
     with pytest.raises(NotImplementedError):
         b.update_event("evt")
+
+
+def test_caldav_client_works_with_username_only(monkeypatch):
+    acc = Account(
+        name="cloud",
+        backend="nextcloud_caldav",
+        caldav_url="https://nc.example.com/remote.php/dav/",
+        caldav_username="bob",
+        caldav_password="pw",
+    )
+    b = NextcloudCalDAVBackend(acc)
+    captured = {}
+
+    class _StubClient:
+        def __init__(self, *, url, username, password):
+            captured["url"] = url
+            captured["username"] = username
+            captured["password"] = password
+
+    monkeypatch.setattr("caldav.DAVClient", _StubClient)
+    b._client()
+    assert captured["username"] == "bob"
+    assert captured["password"] == "pw"
+
+
+def test_caldav_client_dies_without_password():
+    acc = Account(
+        name="cloud",
+        backend="nextcloud_caldav",
+        caldav_url="https://nc.example.com/remote.php/dav/",
+        caldav_username="bob",
+        email="",
+    )
+    b = NextcloudCalDAVBackend(acc)
+    with pytest.raises(SystemExit):
+        b._client()
+
+
+def test_caldav_client_dies_without_username_or_email():
+    acc = Account(
+        name="cloud",
+        backend="nextcloud_caldav",
+        caldav_url="https://nc.example.com/remote.php/dav/",
+        caldav_password="pw",
+    )
+    b = NextcloudCalDAVBackend(acc)
+    with pytest.raises(SystemExit):
+        b._client()
+
+
+def test_google_caldav_resolve_url_requires_email():
+    acc = Account(
+        name="g",
+        backend="google_caldav",
+        caldav_url="https://apidata.googleusercontent.com/caldav/v2",
+    )
+    b = GoogleCalDAVBackend(acc)
+    with pytest.raises(SystemExit):
+        b._resolve_url(acc.caldav_url)
 
 
 def test_quick_add_default_dies():

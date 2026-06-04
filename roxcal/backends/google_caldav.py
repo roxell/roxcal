@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 
+from ..config import CONFIG_FILE, die
 from .caldav import CalDAVBackend
 
 
@@ -16,6 +17,11 @@ class GoogleCalDAVBackend(CalDAVBackend):
     def _resolve_url(self, configured: str) -> str:
         url = configured.rstrip("/")
         if url.endswith("/caldav/v2"):
+            if not self.account.email:
+                die(
+                    f"google_caldav account '{self.account.name}' needs email "
+                    f"(used in the CalDAV URL). Edit {CONFIG_FILE}."
+                )
             url = f"{url}/{self.account.email}/user"
         return url
 

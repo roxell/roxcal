@@ -57,9 +57,14 @@ class CalDAVBackend(Backend):
             return self._cached_client
         import caldav
 
-        if not self.account.email or not self.account.caldav_password:
+        if not self.account.caldav_password:
             die(
-                f"missing email/caldav_password for '{self.account.name}'. "
+                f"missing caldav_password for '{self.account.name}'. "
+                f"Edit {CONFIG_FILE}."
+            )
+        if not self.account.caldav_username and not self.account.email:
+            die(
+                f"set caldav_username or email for '{self.account.name}'. "
                 f"Edit {CONFIG_FILE}."
             )
         if not self.account.caldav_url:
@@ -363,6 +368,11 @@ class CalDAVBackend(Backend):
         }.get(response)
         if not partstat:
             die(f"unknown rsvp response '{response}'")
+        if not self.account.email:
+            die(
+                f"set email for '{self.account.name}' before you can RSVP. "
+                f"Edit {CONFIG_FILE}."
+            )
         cal_obj = self._calendar_obj(calendar)
         ev = cal_obj.event_by_uid(event_id)
         ical = ICalendar.from_ical(ev.data)
