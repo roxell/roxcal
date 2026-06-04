@@ -280,3 +280,70 @@ def test_build_lines_cluster_path():
     assert len(r["fold_ranges"]) == 1
     # Cluster folds are open by default.
     assert r["fold_ranges"][0][2] == 1
+
+
+def _render_and_probe(events, drive_extra: str) -> str:
+    """Run s:render in a buffer, then execute drive_extra to probe state.
+    drive_extra must writefile([...], '{OUT}') the result. Returns the
+    text written.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        ev_file = tmp_path / "events.json"
+        out_file = tmp_path / "out.txt"
+        script_file = tmp_path / "drive.vim"
+        ev_file.write_text(json.dumps(events))
+        script = f"""
+            source {PLUGIN}
+            enew
+            silent file roxcal://agenda
+            setlocal buftype=nofile bufhidden=hide nowrap noswapfile
+            let s:events = json_decode(join(readfile('{ev_file}'), "\\n"))
+            call RoxcalRender(s:events, v:null)
+            {drive_extra.replace('{OUT}', str(out_file))}
+            qa!
+        """
+        script_file.write_text(script)
+        result = subprocess.run(
+            ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if not out_file.exists():
+            raise RuntimeError(
+                f"vim failed (rc={result.returncode}): "
+                f"stdout={result.stdout!r} stderr={result.stderr!r}"
+            )
+        return out_file.read_text().rstrip("\n")
+
+
+def test_render_preserves_cursor_line():
+    events = [
+        {"start": "2026-05-26T09:00:00+02:00", "title": "A", "account": "x"},
+        {"start": "2026-05-26T10:00:00+02:00", "title": "B", "account": "x"},
+        {"start": "2026-05-26T11:00:00+02:00", "title": "C", "account": "x"},
+    ]
+    drive = """
+        call cursor(3, 1)
+        call RoxcalRender(s:events, v:null)
+        call writefile([string(line('.'))], '{OUT}')
+    """
+    assert _render_and_probe(events, drive) == "3"
+
+
+def test_render_clamps_cursor_when_buffer_shrinks():
+    events = [
+        {"start": "2026-05-26T09:00:00+02:00", "title": "A", "account": "x"},
+        {"start": "2026-05-26T10:00:00+02:00", "title": "B", "account": "x"},
+        {"start": "2026-05-26T11:00:00+02:00", "title": "C", "account": "x"},
+    ]
+    drive = """
+        call cursor(line('$'), 1)
+        let s:few = [s:events[0]]
+        call RoxcalRender(s:few, v:null)
+        call writefile([string(line('.'))], '{OUT}')
+    """
+    out = _render_and_probe(events, drive)
+    assert int(out) >= 1
+    assert int(out) <= 2

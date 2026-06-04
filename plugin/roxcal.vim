@@ -266,9 +266,14 @@ function! RoxcalBuildLines(events, clusters, compact) abort
     return s:build_lines(a:events, a:clusters, a:compact)
 endfunction
 
+function! RoxcalRender(events, clusters) abort
+    call s:render(a:events, a:clusters)
+endfunction
+
 function! s:render(events, clusters) abort
     " a:clusters is v:null for plain agenda/search; a list of
     " {overlap_start, overlap_end, events} for conflicts.
+    let saved_cursor = getcurpos()
     setlocal modifiable
     silent %delete _
     let b:roxcal_events = a:events
@@ -308,7 +313,11 @@ function! s:render(events, clusters) abort
         endif
     endfor
     setlocal nomodifiable nomodified
-    call cursor(1, 1)
+    " Restore the cursor so reloads (and toggles) keep the user in place.
+    if saved_cursor[1] > line('$')
+        let saved_cursor[1] = line('$')
+    endif
+    call setpos('.', saved_cursor)
 endfunction
 
 function! s:toggle_compact() abort
@@ -553,19 +562,21 @@ function! s:detail_lines(detail) abort
     return lines
 endfunction
 
+function! s:line_for_idx(idx) abort
+    for [k, v] in items(b:roxcal_line_to_idx)
+        if v == a:idx
+            return str2nr(k)
+        endif
+    endfor
+    return 0
+endfunction
+
 function! s:toggle_expand() abort
     let idx = s:idx_under_cursor()
     if idx < 0
         return
     endif
-    " Find the event header line for this idx
-    let header_line = 0
-    for [k, v] in items(b:roxcal_line_to_idx)
-        if v == idx
-            let header_line = str2nr(k)
-            break
-        endif
-    endfor
+    let header_line = s:line_for_idx(idx)
     if header_line == 0
         return
     endif
@@ -1027,6 +1038,32 @@ function! s:submit_add() abort
     if bufnr >= 0
         execute 'buffer' bufnr
         call s:reload()
+        " Place the cursor on the new event so <CR> expands the right one.
+        call s:cursor_to_title(fields.title)
+    endif
+endfunction
+
+function! s:cursor_to_title(title) abort
+    " Best-effort: match by title since the add CLI does not return an id.
+    " First match wins, so duplicates land on the earliest event of that name.
+    if empty(a:title) || !exists('b:roxcal_events')
+        return
+    endif
+    let target = -1
+    let i = 0
+    for ev in b:roxcal_events
+        if get(ev, 'title', '') ==# a:title
+            let target = i
+            break
+        endif
+        let i += 1
+    endfor
+    if target < 0
+        return
+    endif
+    let header = s:line_for_idx(target)
+    if header > 0
+        call cursor(header, 1)
     endif
 endfunction
 
