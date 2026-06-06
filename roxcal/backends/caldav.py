@@ -82,8 +82,19 @@ class CalDAVBackend(Backend):
     def _all_calendars(self) -> list:
         if self._cached_calendars is not None:
             return self._cached_calendars
-        self._cached_calendars = self._client().principal().calendars()
+        from caldav.lib import error as caldav_error
+
+        try:
+            self._cached_calendars = self._client().principal().calendars()
+        except caldav_error.AuthorizationError:
+            die(
+                f"caldav: server rejected the login for "
+                f"'{self.account.name}'. {self._auth_error_hint()}"
+            )
         return self._cached_calendars
+
+    def _auth_error_hint(self) -> str:
+        return f"Check caldav_username and caldav_password in {CONFIG_FILE}."
 
     def _calendar_obj(self, name: str | None):
         cals = self._all_calendars()

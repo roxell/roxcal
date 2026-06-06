@@ -40,3 +40,10 @@ class GoogleCalDAVBackend(CalDAVBackend):
 
     def _rsvp_outcome_note(self) -> str:
         return "RSVP via CalDAV (may not propagate to organizer)"
+
+    def _auth_error_hint(self) -> str:
+        return (
+            "Google has dropped basic auth on CalDAV for personal @gmail.com. "
+            "App passwords no longer work here. Use the google_oauth backend "
+            "for this account instead."
+        )

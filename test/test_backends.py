@@ -106,6 +106,56 @@ def test_caldav_client_dies_without_username_or_email():
         b._client()
 
 
+def _patch_caldav_auth_error(monkeypatch, url):
+    from caldav.lib import error as caldav_error
+
+    class _StubPrincipal:
+        def calendars(self):
+            raise caldav_error.AuthorizationError(url=url, reason="Unauthorized")
+
+    class _StubClient:
+        def __init__(self, *, url, username, password):
+            pass
+
+        def principal(self):
+            return _StubPrincipal()
+
+    monkeypatch.setattr("caldav.DAVClient", _StubClient)
+
+
+def test_caldav_auth_error_dies_with_clean_message(monkeypatch, capsys):
+    acc = Account(
+        name="cloud",
+        backend="nextcloud_caldav",
+        caldav_url="https://nc.example.com/remote.php/dav/",
+        caldav_username="bob",
+        caldav_password="pw",
+    )
+    _patch_caldav_auth_error(monkeypatch, acc.caldav_url)
+    with pytest.raises(SystemExit):
+        NextcloudCalDAVBackend(acc)._all_calendars()
+    err = capsys.readouterr().err
+    assert "rejected the login" in err
+    assert "cloud" in err
+
+
+def test_google_caldav_auth_error_mentions_oauth(monkeypatch, capsys):
+    acc = Account(
+        name="g",
+        backend="google_caldav",
+        email="me@gmail.com",
+        caldav_url="https://apidata.googleusercontent.com/caldav/v2",
+        caldav_password="pw",
+    )
+    _patch_caldav_auth_error(
+        monkeypatch,
+        "https://apidata.googleusercontent.com/caldav/v2/me@gmail.com/user",
+    )
+    with pytest.raises(SystemExit):
+        GoogleCalDAVBackend(acc)._all_calendars()
+    assert "google_oauth" in capsys.readouterr().err
+
+
 def test_google_caldav_resolve_url_requires_email():
     acc = Account(
         name="g",
