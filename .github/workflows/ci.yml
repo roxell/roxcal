@@ -41,11 +41,13 @@ jobs:
       - name: build deb
         run: |
           docker run --rm -v "$PWD:/work" -w /work debian:trixie bash -ec '
+            sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/debian.sources
             apt-get update -q
             apt-get install -y --no-install-recommends \
-              build-essential debhelper dh-python python3-all python3-flit-core \
-              python3-pip git make ca-certificates
+              build-essential git make ca-certificates python3-pip
+            apt-get build-dep -y --no-install-recommends ./
             pip install --break-system-packages tuxpkg
+            git config --global --add safe.directory /work
             make deb
           '
       - uses: actions/upload-artifact@v4
