@@ -64,7 +64,8 @@ jobs:
           docker run --rm -v "$PWD:/work" -w /work fedora:latest bash -ec '
             dnf install -y python3-pip git make rpm-build
             dnf builddep -y *.spec
-            pip install tuxpkg
+            pip install tuxpkg flit
+            git config --global --add safe.directory /work
             make rpm
           '
       - uses: actions/upload-artifact@v4
