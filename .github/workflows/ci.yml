@@ -81,7 +81,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec '
             pacman -Syu --noconfirm git make python python-pip
-            pip install --break-system-packages tuxpkg
+            pip install --break-system-packages tuxpkg flit
             useradd -m build
             chown -R build:build .
             su build -c "git config --global --add safe.directory $PWD; make pkg"
