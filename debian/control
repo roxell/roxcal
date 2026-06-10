@@ -31,7 +31,7 @@ Depends: ${misc:Depends},
 Description: Unified CLI for Google, Microsoft and CalDAV calendars
  roxcal is a command line tool to read and write calendars across
  Google Calendar (REST API and CalDAV) and Microsoft Outlook
- (Microsoft Graph). It supports multiple accounts, merged agendas,
+ (Outlook). It supports multiple accounts, merged agendas,
  attendees with email invites, and Google Meet / Microsoft Teams
  links on event creation. A vim plugin provides an interactive
  agenda buffer with RSVP, event creation and full detail view.

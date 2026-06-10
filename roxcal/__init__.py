@@ -1,3 +1,3 @@
-"""roxcal - unified CLI for Google Calendar, Microsoft Graph and CalDAV calendars."""
+"""roxcal - unified CLI for Google Calendar, Outlook and CalDAV calendars."""
 
 __version__ = "0.1.0"

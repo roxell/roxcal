@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from roxcal.backends.google_oauth import GoogleOAuthBackend
-from roxcal.backends.microsoft_graph import MicrosoftGraphBackend
+from roxcal.backends.outlook import OutlookBackend
 from roxcal.config import Account
 
 
@@ -71,9 +71,7 @@ def test_google_update_event_no_fields_is_noop(capsys):
 
 
 def test_microsoft_update_event_patches():
-    backend = MicrosoftGraphBackend(
-        Account(name="t", backend="microsoft_graph", client_id="x")
-    )
+    backend = OutlookBackend(Account(name="t", backend="outlook", client_id="x"))
     api = MagicMock(return_value={"id": "abc", "webLink": "x"})
     with patch.object(backend, "_api", api):
         backend.update_event("abc", title="New", description="body")

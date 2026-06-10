@@ -1,6 +1,6 @@
 # roxcal
 
-Python CLI for Google Calendar and Microsoft Graph calendar.
+Python CLI for Google Calendar and Outlook calendar.
 
 Supports multiple accounts and four backends per account:
 
@@ -8,7 +8,7 @@ Supports multiple accounts and four backends per account:
 |---|---|---|---|---|---|
 | `google_oauth` | OAuth (Cloud Console) | yes | yes | yes | yes (Meet) |
 | `google_caldav` | App password | yes | yes | no real invites | no |
-| `microsoft_graph` | OAuth (Azure App Reg.) | yes | yes | yes | yes (Teams) |
+| `outlook` | OAuth (Azure App Reg.) | yes | yes | yes | yes (Teams) |
 | `nextcloud_caldav` | App password | yes | yes | yes (iMIP) | no |
 
 ## Install
@@ -99,7 +99,7 @@ never imports its heavy dependencies (`msal`, `caldav`, etc.).
 | `~/.local/bin/roxcal` | Installed entry point. |
 | `~/.config/roxcal/config.toml` | Account definitions and credentials. Mode 600. |
 | `~/.gcalcli/<account>/oauth_creds` | Google OAuth token for an account. |
-| `~/.config/roxcal/<account>/msal_cache.json` | Microsoft Graph token cache. |
+| `~/.config/roxcal/<account>/msal_cache.json` | Outlook token cache. |
 
 ## First-time setup
 
@@ -161,7 +161,7 @@ created via CalDAV, and no Meet links.
 3. Add an account stanza:
    ```toml
    [accounts.ms]
-   backend = "microsoft_graph"
+   backend = "outlook"
    email = "you@example.com"
    client_id = "..."
    tenant = "common"     # or your tenant id for a work account

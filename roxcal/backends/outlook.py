@@ -13,7 +13,7 @@ SCOPES = ["Calendars.ReadWrite", "User.Read"]
 GRAPH = "https://graph.microsoft.com/v1.0"
 
 
-class MicrosoftGraphBackend(Backend):
+class OutlookBackend(Backend):
     def __init__(self, account):
         super().__init__(account)
         self._cached_token: str | None = None

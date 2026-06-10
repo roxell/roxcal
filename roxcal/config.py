@@ -99,7 +99,7 @@ class Account:
     email: str = ""
     client_id: str = ""
     client_secret: str = ""
-    tenant: str = "common"  # microsoft_graph
+    tenant: str = "common"  # outlook
     caldav_url: str = ""  # google_caldav / nextcloud_caldav
     caldav_username: str = ""  # optional CalDAV login when it differs from email
     caldav_password: str = ""  # app password
@@ -142,7 +142,7 @@ def load_config() -> Config:
             acc.caldav_url = raw.get("caldav_url", "")
             acc.caldav_username = raw.get("caldav_username", "")
             acc.caldav_password = raw.get("caldav_password", "")
-        elif backend == "microsoft_graph":
+        elif backend == "outlook":
             acc.client_id = raw.get("client_id", "")
             acc.tenant = raw.get("tenant", "common")
         else:
@@ -222,9 +222,9 @@ email = "anders.roxell@linaro.org"
 # email = "anders.roxell@linaro.org"
 # caldav_password = "xxxx xxxx xxxx xxxx"
 
-# Microsoft Graph account (Azure App Registration: public client + Calendars.ReadWrite).
+# Outlook account (Azure App Registration: public client + Calendars.ReadWrite).
 # [accounts.ms]
-# backend = "microsoft_graph"
+# backend = "outlook"
 # email = "you@example.com"
 # client_id = ""        # Application (client) ID from Azure
 # tenant = "common"     # or your tenant id

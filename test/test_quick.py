@@ -6,7 +6,7 @@ import pytest
 
 from roxcal.backends.google_caldav import GoogleCalDAVBackend
 from roxcal.backends.google_oauth import GoogleOAuthBackend
-from roxcal.backends.microsoft_graph import MicrosoftGraphBackend
+from roxcal.backends.outlook import OutlookBackend
 from roxcal.config import Account
 
 
@@ -88,11 +88,9 @@ def test_caldav_quick_add_refuses(capsys):
 
 
 def test_microsoft_quick_add_refuses(capsys):
-    backend = MicrosoftGraphBackend(
-        Account(name="t", backend="microsoft_graph", client_id="x")
-    )
+    backend = OutlookBackend(Account(name="t", backend="outlook", client_id="x"))
     with pytest.raises(SystemExit):
         backend.quick_add("Anything")
     err = capsys.readouterr().err
     assert "not supported" in err
-    assert "microsoft_graph" in err
+    assert "outlook" in err

@@ -127,14 +127,14 @@ def test_load_config_microsoft_account(tmp_path, monkeypatch):
 default_account = "ms"
 
 [accounts.ms]
-backend = "microsoft_graph"
+backend = "outlook"
 email = "you@outlook.com"
 client_id = "azure-app-id"
 tenant = "my-tenant"
 """)
     config = load_config()
     acc = config.accounts["ms"]
-    assert acc.backend == "microsoft_graph"
+    assert acc.backend == "outlook"
     assert acc.tenant == "my-tenant"
     assert acc.client_id == "azure-app-id"
 

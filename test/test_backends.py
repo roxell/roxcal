@@ -7,7 +7,7 @@ import pytest
 from roxcal.backends import Backend, make_backend
 from roxcal.backends.google_caldav import GoogleCalDAVBackend
 from roxcal.backends.google_oauth import GoogleOAuthBackend
-from roxcal.backends.microsoft_graph import MicrosoftGraphBackend
+from roxcal.backends.outlook import OutlookBackend
 from roxcal.backends.nextcloud_caldav import NextcloudCalDAVBackend
 from roxcal.config import Account
 
@@ -25,10 +25,10 @@ def test_make_backend_google_caldav():
     assert isinstance(b, GoogleCalDAVBackend)
 
 
-def test_make_backend_microsoft_graph():
-    acc = Account(name="x", backend="microsoft_graph", email="a@b.com")
+def test_make_backend_outlook():
+    acc = Account(name="x", backend="outlook", email="a@b.com")
     b = make_backend(acc)
-    assert isinstance(b, MicrosoftGraphBackend)
+    assert isinstance(b, OutlookBackend)
 
 
 def test_make_backend_unknown_exits():
@@ -168,7 +168,7 @@ def test_google_caldav_resolve_url_requires_email():
 
 
 def test_quick_add_default_dies():
-    acc = Account(name="x", backend="microsoft_graph")
+    acc = Account(name="x", backend="outlook")
     b = Backend(acc)
     with pytest.raises(SystemExit):
         b.quick_add("anything")

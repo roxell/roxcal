@@ -139,8 +139,8 @@ def make_backend(account: Account) -> Backend:
         from .nextcloud_caldav import NextcloudCalDAVBackend
 
         return NextcloudCalDAVBackend(account)
-    if account.backend == "microsoft_graph":
-        from .microsoft_graph import MicrosoftGraphBackend
+    if account.backend == "outlook":
+        from .outlook import OutlookBackend
 
-        return MicrosoftGraphBackend(account)
+        return OutlookBackend(account)
     die(f"unknown backend '{account.backend}'")

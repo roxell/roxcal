@@ -5,7 +5,7 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "roxcal"
 version = "0.1.0"
-description = "Unified CLI for Google Calendar, Microsoft Graph and CalDAV calendars."
+description = "Unified CLI for Google Calendar, Outlook and CalDAV calendars."
 authors = [{name = "Anders Roxell", email = "anders.roxell@gmail.com"}]
 readme = "README.md"
 license = {file = "LICENSE"}
