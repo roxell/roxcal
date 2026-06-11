@@ -1,5 +1,5 @@
 Name:      roxcal
-Version:   0.1.0
+Version:   0.2.0
 Release:   0%{?dist}
 Summary:   Unified CLI for Google, Microsoft and CalDAV calendars
 License:   MIT
@@ -58,6 +58,9 @@ ln -sf ../share/%{name}/run %{buildroot}/usr/bin/%{name}
 %doc README.md
 
 %changelog
+* Thu Jun 11 2026 Anders Roxell <anders.roxell@gmail.com> - 0.2.0-1
+- Release 0.2.0. See: https://github.com/roxell/roxcal/releases/tag/v0.2.0
+
 
 * Wed May 27 2026 Anders Roxell <anders.roxell@linaro.org> - 0.1.0-1
 - Initial release.

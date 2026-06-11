@@ -1,5 +1,5 @@
 pkgname=roxcal
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc='Unified CLI for Google, Microsoft and CalDAV calendars'
 url='https://gitlab.com/aroxell/roxcal'
