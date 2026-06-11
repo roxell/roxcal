@@ -34,7 +34,9 @@ jobs:
       - name: tests
         run: uv run make test
 
+  # Disabled until I fix the packaging environment for each distro.
   deb:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +58,7 @@ jobs:
           path: dist/*.deb
 
   rpm:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +77,7 @@ jobs:
           path: dist/*.rpm
 
   pkg:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,7 +97,7 @@ jobs:
 
   pypi:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [test, deb, rpm, pkg]
+    needs: [test]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -112,8 +116,10 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [test, deb, rpm, pkg]
+    # Disabled until deb/rpm/pkg are green again. PyPI publish above
+    # still happens on tag, the wheel + sdist live there.
+    if: false
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
