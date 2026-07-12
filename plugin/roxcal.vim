@@ -365,7 +365,11 @@ function! s:rsvp(response) abort
         return
     endif
     let ev = b:roxcal_events[idx]
-    if !s:run_action(['--account', ev.account, 'rsvp', ev.id, a:response])
+    let args = ['--account', ev.account, 'rsvp', ev.id, a:response]
+    if !empty(get(ev, 'calendar', ''))
+        let args += ['-c', ev.calendar]
+    endif
+    if !s:run_action(args)
         return
     endif
     call s:reload()

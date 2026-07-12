@@ -207,10 +207,35 @@ class GoogleOAuthBackend(Backend):
         if ev.get("hangoutLink"):
             print(f"Meet:    {ev['hangoutLink']}")
 
+    def _find_event(self, event_id, calendar=None):
+        """Find an event and return (event, calendar_id).
+
+        With no calendar given, try primary first, then the rest. The email
+        id is the same calendar as primary, so drop it to not check primary
+        twice.
+        """
+        from googleapiclient.errors import HttpError
+
+        svc = self._service()
+        if calendar:
+            candidates = [calendar]
+        else:
+            candidates = ["primary"] + [
+                cid for cid in self._calendar_list() if cid != self.account.email
+            ]
+        for cid in candidates:
+            try:
+                ev = svc.events().get(calendarId=cid, eventId=event_id).execute()
+                return ev, cid
+            except HttpError as e:
+                if e.resp.status in (404, 410):
+                    continue
+                raise
+        die(f"event {event_id} not found on any calendar for '{self.account.name}'")
+
     def rsvp(self, event_id, response, calendar=None, comment=""):
         svc = self._service()
-        cal_id = calendar or "primary"
-        ev = svc.events().get(calendarId=cal_id, eventId=event_id).execute()
+        ev, cal_id = self._find_event(event_id, calendar)
         me = self.account.email.lower()
         attendees = ev.get("attendees", [])
         for a in attendees:
@@ -304,26 +329,7 @@ class GoogleOAuthBackend(Backend):
         print(f"Deleted event {event_id}")
 
     def get_event(self, event_id, calendar=None):
-        from googleapiclient.errors import HttpError
-
-        svc = self._service()
-        ev = None
-        cal_id = None
-        candidates = [calendar] if calendar else None
-        if candidates is None:
-            candidates = ["primary"] + list(self._calendar_list().keys())
-        for cid in candidates:
-            try:
-                ev = svc.events().get(calendarId=cid, eventId=event_id).execute()
-                cal_id = cid
-                break
-            except HttpError as e:
-                if e.resp.status in (404, 410):
-                    continue
-                raise
-        if ev is None:
-            die(f"event {event_id} not found on any calendar for '{self.account.name}'")
-
+        ev, cal_id = self._find_event(event_id, calendar)
         me = self.account.email.lower()
         attendees = []
         for a in ev.get("attendees", []):
