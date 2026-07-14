@@ -398,7 +398,11 @@ class CalDAVBackend(Backend):
                     attendee.params["PARTSTAT"] = partstat
                     found = True
         if not found:
-            die(f"you ({self.account.email}) are not an attendee on event {event_id}")
+            die(
+                f"you ({self.account.email}) are not an attendee on event "
+                f"{event_id}; RSVP does not apply here. The event has no invite "
+                f"for you, e.g. a read-only subscribed calendar."
+            )
         ev.data = ical.to_ical().decode()
         ev.save()
         print(f"{self._rsvp_outcome_note()}: {response} on event {event_id}")
