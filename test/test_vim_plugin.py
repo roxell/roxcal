@@ -13,6 +13,27 @@ PLUGIN = Path(__file__).resolve().parent.parent / "plugin" / "roxcal.vim"
 pytestmark = pytest.mark.skipif(shutil.which("vim") is None, reason="vim not installed")
 
 
+def _run_vim(script: str, script_file: Path, out_file: Path) -> str:
+    """Run one drive script in vim and return what it wrote to out_file.
+
+    The helpers below differ only in the script and what they return.
+    """
+    script_file.write_text(script)
+    result = subprocess.run(
+        ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if not out_file.exists():
+        raise RuntimeError(
+            f"vim failed (rc={result.returncode}): "
+            f"stdout={result.stdout!r} stderr={result.stderr!r}"
+        )
+    return out_file.read_text()
+
+
+
 def _fmt_event(event: dict, compact: bool) -> str:
     """Format one event via the plugin's s:fmt_event and return the line."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -29,19 +50,7 @@ def _fmt_event(event: dict, compact: bool) -> str:
             call writefile([s:line], '{out_file}')
             qa!
         """
-        script_file.write_text(script)
-        result = subprocess.run(
-            ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if not out_file.exists():
-            raise RuntimeError(
-                f"vim failed (rc={result.returncode}): "
-                f"stdout={result.stdout!r} stderr={result.stderr!r}"
-            )
-        return out_file.read_text().rstrip("\n")
+        return _run_vim(script, script_file, out_file).rstrip("\n")
 
 
 _EVENT = {
@@ -96,19 +105,7 @@ def _color_args(value) -> str:
             call writefile([s:r], '{out_file}')
             qa!
         """
-        script_file.write_text(script)
-        result = subprocess.run(
-            ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if not out_file.exists():
-            raise RuntimeError(
-                f"vim failed (rc={result.returncode}): "
-                f"stdout={result.stdout!r} stderr={result.stderr!r}"
-            )
-        return out_file.read_text().rstrip("\n")
+        return _run_vim(script, script_file, out_file).rstrip("\n")
 
 
 def test_color_args_named():
@@ -148,19 +145,7 @@ def _build_lines(events, clusters=None, compact: bool = False) -> dict:
             call writefile([json_encode(s:r)], '{out_file}')
             qa!
         """
-        script_file.write_text(script)
-        result = subprocess.run(
-            ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if not out_file.exists():
-            raise RuntimeError(
-                f"vim failed (rc={result.returncode}): "
-                f"stdout={result.stdout!r} stderr={result.stderr!r}"
-            )
-        return json.loads(out_file.read_text())
+        return json.loads(_run_vim(script, script_file, out_file))
 
 
 def test_build_lines_inserts_day_separator():
@@ -303,19 +288,7 @@ def _render_and_probe(events, drive_extra: str) -> str:
             {drive_extra.replace('{OUT}', str(out_file))}
             qa!
         """
-        script_file.write_text(script)
-        result = subprocess.run(
-            ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if not out_file.exists():
-            raise RuntimeError(
-                f"vim failed (rc={result.returncode}): "
-                f"stdout={result.stdout!r} stderr={result.stderr!r}"
-            )
-        return out_file.read_text().rstrip("\n")
+        return _run_vim(script, script_file, out_file).rstrip("\n")
 
 
 def test_render_preserves_cursor_line():
