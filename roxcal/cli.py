@@ -105,10 +105,34 @@ def _collect_events(
             if not args.all:
                 raise
             print(f"  [{acc.name}] skipped (not logged in?)")
+        except OSError as exc:
+            # Usually the server is down or behind a VPN, but a failing
+            # cache write looks the same here. So report what it said.
+            reason = _short_error_reason(exc)
+            if not args.all:
+                die(f"account '{acc.name}' failed: {reason}")
+            print(f"  [{acc.name}] skipped: {reason}")
     items.sort(key=lambda e: e["start"])
     if args.all and not getattr(args, "no_dedupe", False):
         items = _dedupe_by_ical_uid(items)
     return items
+
+
+def _short_error_reason(exc: OSError, max_len: int = 160) -> str:
+    """One short line out of an OSError.
+
+    urllib3 puts the whole retry history and object reprs in str(exc), on a
+    single line. A password should never be in caldav_url, but redact one if
+    it is there.
+    """
+    text = str(exc).strip() or exc.__class__.__name__
+    text = text.splitlines()[-1].strip()
+    text = re.sub(r"://[^/@\s]+:[^/@\s]+@", "://[redacted]@", text)
+    text = re.sub(r"<[^<>]*object at 0x[0-9a-f]+>,?\s*", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) > max_len:
+        text = text[: max_len - 1].rstrip() + "\u2026"
+    return text
 
 
 def _dedupe_by_ical_uid(items: list[dict]) -> list[dict]:

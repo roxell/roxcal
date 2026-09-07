@@ -229,6 +229,93 @@ def test_collect_events_all_skips_unauth(capsys):
     assert "[a] skipped" in capsys.readouterr().out
 
 
+def test_short_error_reason_keeps_errno_message_as_is():
+    assert (
+        cli_mod._short_error_reason(OSError(113, "No route to host"))
+        == "[Errno 113] No route to host"
+    )
+
+
+def test_short_error_reason_drops_object_repr_and_truncates():
+    """urllib3 puts the retry history and object reprs on one line."""
+    long = (
+        "HTTPSConnectionPool(host='10.0.0.1', port=443): Max retries exceeded "
+        "with url: /remote.php/dav/ (Caused by ConnectTimeoutError("
+        "<urllib3.connection.HTTPSConnection object at 0x7fc9084a4c20>, "
+        "'Connection to 10.0.0.1 timed out. (connect timeout=30)'))"
+    )
+    out = cli_mod._short_error_reason(OSError(long))
+    assert "object at 0x" not in out
+    assert len(out) <= 160
+    assert "10.0.0.1" in out
+
+
+def test_short_error_reason_falls_back_to_class_name():
+    assert cli_mod._short_error_reason(OSError()) == "OSError"
+
+
+def test_short_error_reason_redacts_password_in_url():
+    """A password should not be in caldav_url, but never print one."""
+    exc = OSError("HTTPSConnectionPool(url: https://anders:hunter2@cloud.example.com/dav/)")
+    out = cli_mod._short_error_reason(exc)
+    assert "hunter2" not in out
+    assert "[redacted]" in out
+    assert "cloud.example.com" in out
+
+
+def test_short_error_reason_keeps_last_line_of_multiline_text():
+    exc = OSError("first line\nsecond line\n[Errno 113] No route to host")
+    assert cli_mod._short_error_reason(exc) == "[Errno 113] No route to host"
+
+
+def test_collect_events_all_skips_unreachable_server(capsys):
+    """One dead server must not lose the events of every other account."""
+    cfg = _two_account_cfg()
+    args = Namespace(account=None, calendar=None, all=True, all_calendars=False)
+
+    def mk(account):
+        backend = MagicMock()
+        if account.name == "a":
+            backend.list_events.side_effect = OSError(113, "No route to host")
+        else:
+            backend.list_events.return_value = iter(
+                [{"start": "2026-05-21T10:00", "title": "B"}]
+            )
+        return backend
+
+    with patch.object(cli_mod, "make_backend", side_effect=mk):
+        items = _collect_events(
+            args,
+            cfg,
+            datetime(2026, 5, 21).astimezone(),
+            datetime(2026, 5, 23).astimezone(),
+        )
+    assert [e["title"] for e in items] == ["B"]
+    out = capsys.readouterr().out
+    assert "[a] skipped" in out
+    assert "No route to host" in out
+
+
+def test_collect_events_single_unreachable_server_exits(capsys):
+    """Alone there is nothing to fall back to, so exit with one clear line."""
+    cfg = _cfg()
+    args = Namespace(account=None, calendar=None, all=False, all_calendars=False)
+    backend = MagicMock()
+    backend.list_events.side_effect = OSError(113, "No route to host")
+
+    with patch.object(cli_mod, "make_backend", return_value=backend):
+        with pytest.raises(SystemExit):
+            _collect_events(
+                args,
+                cfg,
+                datetime(2026, 5, 21).astimezone(),
+                datetime(2026, 5, 23).astimezone(),
+            )
+    err = capsys.readouterr().err
+    assert "No route to host" in err
+    assert "Traceback" not in err
+
+
 # ---------- cmd_init / cmd_list
 
 
