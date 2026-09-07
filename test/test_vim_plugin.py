@@ -320,3 +320,81 @@ def test_render_clamps_cursor_when_buffer_shrinks():
     out = _render_and_probe(events, drive)
     assert int(out) >= 1
     assert int(out) <= 2
+
+
+def _short_error(text: str) -> str:
+    """Ask the plugin's RoxcalShortError() what it would show for this
+    stderr text."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        in_file = tmp_path / "err.json"
+        out_file = tmp_path / "out.txt"
+        script_file = tmp_path / "drive.vim"
+        in_file.write_text(json.dumps(text))
+        script = f"""
+            source {PLUGIN}
+            let s:txt = json_decode(join(readfile('{in_file}'), "\\n"))
+            call writefile([RoxcalShortError(s:txt)], '{out_file}')
+            qa!
+        """
+        return _run_vim(script, script_file, out_file).rstrip("\n")
+
+
+_TRACEBACK = (
+    "Traceback (most recent call last):\n"
+    '  File "/x/urllib3/connection.py", line 231, in _new_conn\n'
+    "    sock = self._resolver.create_connection(\n"
+    "OSError: [Errno 113] No route to host\n"
+    "\n"
+    "The above exception was the direct cause of the following exception:\n"
+    "\n"
+    "Traceback (most recent call last):\n"
+    '  File "/x/niquests/adapters.py", line 958, in send\n'
+    "    raise ConnectionError(e, request=request)\n"
+    "niquests.exceptions.ConnectionError: no route to host\n"
+)
+
+
+def test_short_error_keeps_only_the_last_line():
+    """A python traceback must not flood the message area."""
+    out = _short_error(_TRACEBACK)
+    assert out == "niquests.exceptions.ConnectionError: no route to host"
+    assert "Traceback" not in out
+    assert "\n" not in out
+
+
+def test_short_error_ignores_trailing_blank_lines():
+    assert _short_error("roxcal: cannot reach the server\n\n\n") == (
+        "roxcal: cannot reach the server"
+    )
+
+
+def test_short_error_passes_single_line_through():
+    assert _short_error("roxcal: unknown account 'x'") == "roxcal: unknown account 'x'"
+
+
+def test_short_error_handles_empty_output():
+    assert _short_error("") == "roxcal failed with no output"
+
+
+def test_short_error_does_not_touch_the_global():
+    """It formats, nothing else. s:report_failure owns the global."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        out_file = tmp_path / "out.txt"
+        script_file = tmp_path / "drive.vim"
+        script_file.write_text(
+            f"""
+            source {PLUGIN}
+            call RoxcalShortError("boom")
+            call writefile([exists('g:roxcal_last_error') ? 'set' : 'unset'], '{out_file}')
+            qa!
+            """
+        )
+        subprocess.run(
+            ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert out_file.read_text().strip() == "unset"

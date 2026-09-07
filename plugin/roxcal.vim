@@ -103,6 +103,29 @@ function! s:ensure_colors_loaded() abort
     call RoxcalApplyColors(m)
 endfunction
 
+" A failing python call prints a whole traceback. The real reason is on the
+" last line. This only formats, s:report_failure does the reporting.
+function! RoxcalShortError(out) abort
+    let lines = filter(split(a:out, '\n'), 'v:val !~ "^\\s*$"')
+    if empty(lines)
+        return 'roxcal failed with no output'
+    endif
+    return trim(lines[-1])
+endfunction
+
+" The full text goes in g:roxcal_last_error. Only point at it when there was
+" more than the line we show.
+function! s:report_failure(out) abort
+    let g:roxcal_last_error = a:out
+    let short = RoxcalShortError(a:out)
+    echohl ErrorMsg
+    echom 'roxcal failed: ' . short
+    if short !=# trim(a:out)
+        echom 'full output in g:roxcal_last_error'
+    endif
+    echohl None
+endfunction
+
 function! s:shellcmd(args) abort
     let prefix = type(g:roxcal_command) == v:t_list ? copy(g:roxcal_command) : [g:roxcal_command]
     return join(map(prefix + a:args, 'shellescape(v:val)'), ' ')
@@ -111,9 +134,7 @@ endfunction
 function! s:run_json(args) abort
     let out = system(s:shellcmd(a:args))
     if v:shell_error
-        echohl ErrorMsg
-        echom 'roxcal failed: ' . out
-        echohl None
+        call s:report_failure(out)
         return v:null
     endif
     try
@@ -129,9 +150,7 @@ endfunction
 function! s:run_action(args) abort
     let out = system(s:shellcmd(a:args))
     if v:shell_error
-        echohl ErrorMsg
-        echom 'roxcal failed: ' . out
-        echohl None
+        call s:report_failure(out)
         return 0
     endif
     return 1
