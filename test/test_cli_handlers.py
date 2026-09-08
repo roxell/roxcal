@@ -256,7 +256,9 @@ def test_short_error_reason_falls_back_to_class_name():
 
 def test_short_error_reason_redacts_password_in_url():
     """A password should not be in caldav_url, but never print one."""
-    exc = OSError("HTTPSConnectionPool(url: https://anders:hunter2@cloud.example.com/dav/)")
+    exc = OSError(
+        "HTTPSConnectionPool(url: https://anders:hunter2@cloud.example.com/dav/)"
+    )
     out = cli_mod._short_error_reason(exc)
     assert "hunter2" not in out
     assert "[redacted]" in out

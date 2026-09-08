@@ -33,7 +33,6 @@ def _run_vim(script: str, script_file: Path, out_file: Path) -> str:
     return out_file.read_text()
 
 
-
 def _fmt_event(event: dict, compact: bool) -> str:
     """Format one event via the plugin's s:fmt_event and return the line."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -383,14 +382,12 @@ def test_short_error_does_not_touch_the_global():
         tmp_path = Path(tmp)
         out_file = tmp_path / "out.txt"
         script_file = tmp_path / "drive.vim"
-        script_file.write_text(
-            f"""
+        script_file.write_text(f"""
             source {PLUGIN}
             call RoxcalShortError("boom")
             call writefile([exists('g:roxcal_last_error') ? 'set' : 'unset'], '{out_file}')
             qa!
-            """
-        )
+            """)
         subprocess.run(
             ["vim", "-Es", "-u", "NONE", "-i", "NONE", "-S", str(script_file)],
             capture_output=True,
