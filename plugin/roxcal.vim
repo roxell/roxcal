@@ -113,8 +113,6 @@ function! RoxcalShortError(out) abort
     return trim(lines[-1])
 endfunction
 
-" The full text goes in g:roxcal_last_error. Only point at it when there was
-" more than the line we show.
 function! s:report_failure(out) abort
     let g:roxcal_last_error = a:out
     let short = RoxcalShortError(a:out)
