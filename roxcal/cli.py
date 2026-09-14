@@ -1023,6 +1023,8 @@ def main() -> None:
     cfg = load_config()
     try:
         args.func(args, cfg)
+    except KeyboardInterrupt:
+        die("interrupted", code=130)
     except Exception as exc:
         # die() raises SystemExit, which is not an Exception, so a handler
         # that already said something useful passes straight through.

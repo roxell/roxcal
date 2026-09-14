@@ -1514,6 +1514,16 @@ def test_main_keeps_traceback_when_asked(capsys, monkeypatch):
         _run_main(boom, monkeypatch)
 
 
+def test_main_handles_ctrl_c(capsys, monkeypatch):
+    def interrupted(args, cfg):
+        raise KeyboardInterrupt
+
+    with pytest.raises(SystemExit) as exc:
+        _run_main(interrupted, monkeypatch)
+    assert exc.value.code == 130
+    assert "Traceback" not in capsys.readouterr().err
+
+
 def test_main_lets_die_through(capsys, monkeypatch):
     """die() already prints a good message, do not wrap it again."""
 
