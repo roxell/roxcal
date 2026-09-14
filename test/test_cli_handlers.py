@@ -1478,3 +1478,49 @@ def test_main_dispatches_to_subcommand_handler(monkeypatch):
     ):
         main()
     backend.list_calendars.assert_called_once()
+
+
+# ---------- main() error handling
+
+
+def _run_main(func, monkeypatch):
+    """Run main() with args.func replaced, so we control what it raises."""
+    args = Namespace(func=func)
+    parser = MagicMock()
+    parser.parse_args.return_value = args
+    monkeypatch.setattr(cli_mod, "build_parser", lambda: parser)
+    monkeypatch.setattr(cli_mod, "load_config", lambda: _cfg())
+    cli_mod.main()
+
+
+def test_main_reports_unexpected_error_without_traceback(capsys, monkeypatch):
+    def boom(args, cfg):
+        raise ValueError("something broke")
+
+    with pytest.raises(SystemExit):
+        _run_main(boom, monkeypatch)
+    err = capsys.readouterr().err
+    assert "ValueError: something broke" in err
+    assert "Traceback" not in err
+
+
+def test_main_keeps_traceback_when_asked(capsys, monkeypatch):
+    monkeypatch.setenv("ROXCAL_TRACEBACK", "1")
+
+    def boom(args, cfg):
+        raise ValueError("something broke")
+
+    with pytest.raises(ValueError):
+        _run_main(boom, monkeypatch)
+
+
+def test_main_lets_die_through(capsys, monkeypatch):
+    """die() already prints a good message, do not wrap it again."""
+
+    def dies(args, cfg):
+        cli_mod.die("unknown account 'x'")
+
+    with pytest.raises(SystemExit):
+        _run_main(dies, monkeypatch)
+    err = capsys.readouterr().err
+    assert err.strip() == "roxcal: unknown account 'x'"

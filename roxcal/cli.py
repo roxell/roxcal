@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import calendar as _calendar
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -118,8 +119,8 @@ def _collect_events(
     return items
 
 
-def _short_error_reason(exc: OSError, max_len: int = 160) -> str:
-    """One short line out of an OSError.
+def _short_error_reason(exc: BaseException, max_len: int = 160) -> str:
+    """One short line out of an exception.
 
     urllib3 puts the whole retry history and object reprs in str(exc), on a
     single line. A password should never be in caldav_url, but redact one if
@@ -1020,7 +1021,17 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     cfg = load_config()
-    args.func(args, cfg)
+    try:
+        args.func(args, cfg)
+    except Exception as exc:
+        # die() raises SystemExit, which is not an Exception, so a handler
+        # that already said something useful passes straight through.
+        if os.environ.get("ROXCAL_TRACEBACK"):
+            raise
+        die(
+            f"{type(exc).__name__}: {_short_error_reason(exc)}"
+            " (set ROXCAL_TRACEBACK=1 to see the traceback)"
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover
